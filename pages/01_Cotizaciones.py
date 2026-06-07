@@ -5,6 +5,7 @@ import os
 from fpdf import FPDF
 from datetime import date
 
+# Asegura que la app encuentre tu archivo utils.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils import obtener_gspread_client
 
@@ -22,44 +23,78 @@ def cargar_preciario():
         df.columns = [str(c).strip().upper() for c in df.columns]
         return df
     except Exception as e:
+        st.error(f"Error de conexión: {e}")
         return pd.DataFrame()
 
 df_precios = cargar_preciario()
 
+# INICIO DEL FORMULARIO PRINCIPAL
 with st.form("cotizador_form"):
-    # (Tus secciones 1 y 2 permanecen igual...)
+    # SECCIÓN 1: Cliente y Proyecto
+    st.markdown("### 1. Datos de Identificación del Cliente")
+    col1, col2 = st.columns(2)
+    with col1:
+        cliente = st.text_input("CLIENTE:", placeholder="Ej. SMARTFIT")
+        inmueble = st.text_input("INMUEBLE:", placeholder="Ej. EDIFICIO CORPORATIVO")
+    with col2:
+        reporte = st.text_input("# DE TICKET / REPORTE CLIENTE:", placeholder="Ej. OC-0002")
+        atencion = st.text_input("ATENCIÓN:", value="A QUIEN CORRESPONDA")
+        titulo_cotizacion = st.text_input("TIPO DE TRABAJO / TÍTULO:", placeholder="Ej. REPARACIÓN DE FUGA")
+
+    # SECCIÓN 2: Cotizador
+    st.markdown("### 2. Datos del Cotizador")
+    col3, col4 = st.columns(2)
+    with col3:
+        cotizador_nombre = st.text_input("ELABORÓ / COTIZÓ (Tu nombre):", placeholder="Ej. GERARDO MENDEZ")
+        cotizador_puesto = st.selectbox("PUESTO:", ["Gerente Regional", "Gerente de Servicio", "Supervisor", "Jefe de Oficina", "Cotizador"])
+    with col4:
+        fecha_cotizacion = st.date_input("FECHA DE COTIZACIÓN:", date.today())
+        fecha_solicitud = st.date_input("FECHA SOLICITUD DE COTIZACIÓN:", date.today())
+
+    # SECCIÓN 3: Conceptos a Cotizar
     st.markdown("### 3. Conceptos a Cotizar")
-    habilitar_preciario = st.toggle("Habilitar Preciario Besco", value=True)
+    habilitar_preciario = st.toggle("Habilitar búsqueda en Preciario Besco", value=True)
+    
     datos_para_pdf = []
     
     if habilitar_preciario and not df_precios.empty:
-        region_precio = st.selectbox("Región de Precios (PU):", [c for c in df_precios.columns if "PU " in c] or ["PU"])
-        busqueda = st.text_input("🔍 Buscar conceptos:")
+        col_c = "CONCEPTO" if "CONCEPTO" in df_precios.columns else df_precios.columns[1]
+        col_i = "ITEM" if "ITEM" in df_precios.columns else df_precios.columns[0]
+        col_u = "UNIDAD" if "UNIDAD" in df_precios.columns else df_precios.columns[2]
+        columnas_pu = [col for col in df_precios.columns if "PU " in col] or ["PU"]
         
-        # Filtro de búsqueda (Item, Concepto, Unidad)
-        filtro = df_precios[df_precios.apply(lambda row: busqueda.lower() in str(row).lower(), axis=1)]
-        seleccionados = st.multiselect("Selecciona servicios:", filtro["CONCEPTO"].tolist())
+        region_precio = st.selectbox("Región de Precios (PU):", columnas_pu)
+        busqueda = st.text_input("🔍 Buscar por ITEM, CONCEPTO o UNIDAD:")
+        
+        # Filtro de búsqueda inteligente
+        filtro = df_precios.copy()
+        if busqueda:
+            filtro = df_precios[
+                df_precios[col_i].astype(str).str.contains(busqueda, case=False) |
+                df_precios[col_c].astype(str).str.contains(busqueda, case=False) |
+                df_precios[col_u].astype(str).str.contains(busqueda, case=False)
+            ]
+        
+        seleccionados = st.multiselect("Selecciona servicios:", filtro[col_c].tolist())
         
         for concepto in seleccionados:
-            fila = df_precios[df_precios["CONCEPTO"] == concepto].iloc[0]
-            pu_base = float(str(fila.get(region_precio, "0")).replace('$', '').replace(',', '').strip() or 0)
+            fila = df_precios[df_precios[col_c] == concepto].iloc[0]
             
-            st.markdown(f"**{concepto}**")
-            c1, c2, c3, c4, c5, c6 = st.columns([1, 2, 1, 1, 1, 1])
+            c1, c2, c3, c4 = st.columns([1, 4, 1, 1])
+            with c1: st.code(fila.get(col_i, "S/C"))
+            with c2: st.info(concepto)
+            with c3: st.text(fila.get(col_u, "PZA"))
+            with c4: cant = st.number_input(f"Cant_{fila.get(col_i)}", min_value=0.1, value=1.0, label_visibility="collapsed")
             
-            with c1: st.text("ITEM"); st.code(fila.get("ITEM", "S/C"))
-            with c2: st.text("DESCRIPCIÓN"); st.info(concepto)
-            with c3: st.text("UNIDAD"); st.text(fila.get("UNIDAD", "PZA"))
-            with c4: 
-                pu = st.number_input(f"PU_{concepto[:5]}", value=pu_base, format="%.2f")
-            with c5: 
-                utilidad = st.number_input(f"Utilidad %_{concepto[:5]}", value=23.55, step=0.5, format="%.2f")
-            with c6:
-                precio_venta = pu * (1 + (utilidad / 100))
-                st.text("PRECIO VENTA")
-                st.success(f"${precio_venta:,.2f}")
-            
-            cant = st.number_input(f"Cantidad {concepto[:5]}", 0.1, 100.0, 1.0)
-            datos_para_pdf.append({"codigo": fila.get("ITEM"), "concepto": concepto, "unidad": fila.get("UNIDAD"), "cantidad": cant, "pu": precio_venta})
+            pu = float(str(fila.get(region_precio, "0")).replace('$', '').replace(',', '').strip() or 0)
+            datos_para_pdf.append({"codigo": fila.get(col_i), "concepto": concepto, "unidad": fila.get(col_u), "cantidad": cant, "pu": pu})
     
-    # ... (Resto de tu lógica para generar el PDF)
+    # EL BOTÓN DE ENVÍO DEBE ESTAR DENTRO DEL WITH FORM (Última línea)
+    submit = st.form_submit_button("📄 Generar PDF Formato Besco", type="primary")
+
+    if submit:
+        if cliente and titulo_cotizacion and cotizador_nombre:
+            st.success("¡Formulario validado! Generando PDF...")
+            # Aquí va toda tu lógica de generación de PDF con FPDF...
+        else:
+            st.warning("⚠️ Asegúrate de completar los campos obligatorios.")
