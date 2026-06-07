@@ -1,6 +1,15 @@
-import streamlit as st
-import pandas as pd
+import os
 from datetime import date
+
+import pandas as pd
+import streamlit as st
+
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+except ImportError:
+    gspread = None
+    Credentials = None
 
 
 # ==========================================
@@ -39,70 +48,6 @@ def inicializar_session_state():
         }
 
 
-def obtener_preciario_besco():
-    """
-    PRECIARIO BESCO DE EJEMPLO.
-    Aquí puedes reemplazar o ampliar con tu preciario real.
-    """
-    data = [
-        {
-            "clave": "BESCO-001",
-            "tipo_servicio": "Servicio",
-            "descripcion": "Mantenimiento preventivo a equipo",
-            "unidad": "SERVICIO",
-            "precio_unitario": 1850.00
-        },
-        {
-            "clave": "BESCO-002",
-            "tipo_servicio": "Servicio",
-            "descripcion": "Mantenimiento correctivo menor",
-            "unidad": "SERVICIO",
-            "precio_unitario": 2450.00
-        },
-        {
-            "clave": "BESCO-003",
-            "tipo_servicio": "Instalación",
-            "descripcion": "Instalación de equipo",
-            "unidad": "SERVICIO",
-            "precio_unitario": 3200.00
-        },
-        {
-            "clave": "BESCO-004",
-            "tipo_servicio": "Producto",
-            "descripcion": "Suministro de refacción estándar",
-            "unidad": "PZA",
-            "precio_unitario": 780.00
-        },
-        {
-            "clave": "BESCO-005",
-            "tipo_servicio": "Proyecto",
-            "descripcion": "Levantamiento y diagnóstico técnico",
-            "unidad": "SERVICIO",
-            "precio_unitario": 1500.00
-        }
-    ]
-    return pd.DataFrame(data)
-
-
-def calcular_precio_venta(precio_unitario: float, utilidad_porcentaje: float) -> float:
-    """
-    Calcula el precio de venta:
-    precio_venta = precio_unitario * (1 + utilidad_porcentaje / 100)
-    """
-    return round(precio_unitario * (1 + (utilidad_porcentaje / 100)), 2)
-
-
-def calcular_utilidad_monto(precio_unitario: float, utilidad_porcentaje: float) -> float:
-    """
-    Calcula la utilidad en monto.
-    """
-    return round(precio_unitario * (utilidad_porcentaje / 100), 2)
-
-
-def formatear_moneda(valor: float) -> str:
-    return f"${valor:,.2f}"
-
-
 def limpiar_cotizacion():
     st.session_state.conceptos_cotizacion = []
     st.session_state.usar_preciario_besco = False
@@ -123,6 +68,238 @@ def limpiar_cotizacion():
 
 def toggle_preciario_besco():
     st.session_state.usar_preciario_besco = not st.session_state.usar_preciario_besco
+
+
+def calcular_precio_venta(precio_unitario: float, utilidad_porcentaje: float) -> float:
+    return round(float(precio_unitario) * (1 + (float(utilidad_porcentaje) / 100)), 2)
+
+
+def calcular_utilidad_monto(precio_unitario: float, utilidad_porcentaje: float) -> float:
+    return round(float(precio_unitario) * (float(utilidad_porcentaje) / 100), 2)
+
+
+def formatear_moneda(valor: float) -> str:
+    return f"${float(valor):,.2f}"
+
+
+def valor_secreto(*claves, default=None):
+    """
+    Busca una clave primero en st.secrets y luego en variables de entorno.
+    """
+    for clave in claves:
+        # 1) st.secrets directo
+        try:
+            if clave in st.secrets:
+                return st.secrets[clave]
+        except Exception:
+            pass
+
+        # 2) variables de entorno
+        valor_env = os.getenv(clave)
+        if valor_env:
+            return valor_env
+
+    return default
+
+
+def obtener_credenciales_gcp():
+    """
+    Recupera credenciales desde st.secrets o variables de entorno.
+
+    Formatos soportados:
+    - st.secrets["gcp_service_account"] = { ...json de la cuenta de servicio... }
+    - st.secrets["GOOGLE_SERVICE_ACCOUNT"] = { ... }
+    - os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"] = texto JSON
+    """
+    if Credentials is None:
+        raise RuntimeError(
+            "No está instalado google-auth. Agrega 'google-auth' y 'gspread' a requirements.txt."
+        )
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/drive.readonly",
+    ]
+
+    # Opción 1: secrets con objeto dict
+    try:
+        if "gcp_service_account" in st.secrets:
+            info = dict(st.secrets["gcp_service_account"])
+            return Credentials.from_service_account_info(info, scopes=scopes)
+    except Exception:
+        pass
+
+    try:
+        if "GOOGLE_SERVICE_ACCOUNT" in st.secrets:
+            info = dict(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+            return Credentials.from_service_account_info(info, scopes=scopes)
+    except Exception:
+        pass
+
+    # Opción 2: variable de entorno con JSON texto
+    service_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if service_json:
+        import json
+        info = json.loads(service_json)
+        return Credentials.from_service_account_info(info, scopes=scopes)
+
+    raise RuntimeError(
+        "No se encontraron credenciales de Google Sheets en st.secrets ni en variables de entorno."
+    )
+
+
+def construir_cliente_gspread():
+    """
+    Construye el cliente de gspread usando la cuenta de servicio ya configurada.
+    """
+    if gspread is None:
+        raise RuntimeError(
+            "No está instalado gspread. Agrega 'gspread' y 'google-auth' a requirements.txt."
+        )
+
+    creds = obtener_credenciales_gcp()
+    return gspread.authorize(creds)
+
+
+def obtener_spreadsheet_besco():
+    """
+    Recupera el spreadsheet del Preciario BESCO usando:
+    - URL completa del Google Sheet
+    - o clave (spreadsheet key)
+
+    El código intenta encontrar cualquiera de estas claves en secrets/env:
+    URL:
+      BESCO_PRECIARIO_URL
+      PRECIARIO_BESCO_URL
+      GOOGLE_SHEETS_URL
+      PRECIARIO_URL
+
+    KEY:
+      BESCO_PRECIARIO_KEY
+      PRECIARIO_BESCO_KEY
+      GOOGLE_SHEETS_KEY
+      PRECIARIO_KEY
+    """
+    gc = construir_cliente_gspread()
+
+    spreadsheet_url = valor_secreto(
+        "BESCO_PRECIARIO_URL",
+        "PRECIARIO_BESCO_URL",
+        "GOOGLE_SHEETS_URL",
+        "PRECIARIO_URL",
+        default=None
+    )
+
+    spreadsheet_key = valor_secreto(
+        "BESCO_PRECIARIO_KEY",
+        "PRECIARIO_BESCO_KEY",
+        "GOOGLE_SHEETS_KEY",
+        "PRECIARIO_KEY",
+        default=None
+    )
+
+    if spreadsheet_url:
+        return gc.open_by_url(spreadsheet_url)
+
+    if spreadsheet_key:
+        return gc.open_by_key(spreadsheet_key)
+
+    raise RuntimeError(
+        "No se encontró el vínculo ni la clave del Preciario BESCO en st.secrets o variables de entorno."
+    )
+
+
+def normalizar_columnas_preciario(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Estandariza nombres de columnas para que el módulo funcione
+    aunque el Google Sheet traiga encabezados ligeramente distintos.
+    """
+    df = df.copy()
+    columnas_originales = list(df.columns)
+
+    mapa = {}
+    for col in columnas_originales:
+        col_norm = str(col).strip().lower()
+
+        if col_norm in ["clave", "codigo", "código", "id", "sku"]:
+            mapa[col] = "clave"
+        elif col_norm in ["tipo_servicio", "tipo de servicio", "tipo", "servicio"]:
+            mapa[col] = "tipo_servicio"
+        elif col_norm in [
+            "descripcion", "descripción", "descripcion de producto o servicio",
+            "descripción de producto o servicio", "concepto", "producto", "servicio_descripcion"
+        ]:
+            mapa[col] = "descripcion"
+        elif col_norm in ["unidad", "uom", "um"]:
+            mapa[col] = "unidad"
+        elif col_norm in [
+            "precio_unitario", "precio unitario", "precio", "costo", "costo unitario"
+        ]:
+            mapa[col] = "precio_unitario"
+
+    df = df.rename(columns=mapa)
+
+    columnas_obligatorias = ["tipo_servicio", "descripcion", "unidad", "precio_unitario"]
+    faltantes = [c for c in columnas_obligatorias if c not in df.columns]
+
+    if faltantes:
+        raise ValueError(
+            f"El Preciario BESCO no tiene las columnas requeridas. "
+            f"Faltan: {', '.join(faltantes)}. "
+            f"Columnas detectadas: {', '.join([str(c) for c in df.columns])}"
+        )
+
+    if "clave" not in df.columns:
+        df["clave"] = ""
+
+    df["tipo_servicio"] = df["tipo_servicio"].fillna("").astype(str)
+    df["descripcion"] = df["descripcion"].fillna("").astype(str)
+    df["unidad"] = df["unidad"].fillna("").astype(str)
+
+    df["precio_unitario"] = (
+        df["precio_unitario"]
+        .astype(str)
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip()
+    )
+    df["precio_unitario"] = pd.to_numeric(df["precio_unitario"], errors="coerce").fillna(0.0)
+
+    df = df[df["descripcion"].str.strip() != ""].copy()
+    df = df.reset_index(drop=True)
+
+    return df
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def obtener_preciario_besco():
+    """
+    Carga el Preciario BESCO desde Google Sheets.
+    """
+    spreadsheet = obtener_spreadsheet_besco()
+
+    worksheet_name = valor_secreto(
+        "BESCO_PRECIARIO_WORKSHEET",
+        "PRECIARIO_BESCO_WORKSHEET",
+        "GOOGLE_SHEETS_WORKSHEET",
+        "PRECIARIO_WORKSHEET",
+        default=None
+    )
+
+    if worksheet_name:
+        worksheet = spreadsheet.worksheet(worksheet_name)
+    else:
+        worksheet = spreadsheet.get_worksheet(0)
+
+    records = worksheet.get_all_records()
+
+    if not records:
+        return pd.DataFrame(columns=["clave", "tipo_servicio", "descripcion", "unidad", "precio_unitario"])
+
+    df = pd.DataFrame(records)
+    df = normalizar_columnas_preciario(df)
+
+    return df
 
 
 # ==========================================
@@ -278,13 +455,12 @@ with st.container(border=True):
 
     with col_m2:
         if st.session_state.usar_preciario_besco:
-            st.success("Modo activo: **Preciario BESCO**. Puedes seleccionar un concepto del catálogo.")
+            st.success("Modo activo: Preciario BESCO")
         else:
-            st.info("Modo activo: **Captura manual**. Puedes capturar cada concepto manualmente.")
+            st.info("Modo activo: Captura manual")
 
     st.markdown("---")
 
-    # VARIABLES DE CAPTURA
     origen_concepto = "Captura manual"
     clave_preciario = ""
     tipo_servicio = ""
@@ -292,61 +468,125 @@ with st.container(border=True):
     unidad = ""
     precio_unitario = 0.00
 
-    # ==========================
-    # MODO PRECIARIO BESCO
-    # ==========================
     if st.session_state.usar_preciario_besco:
         origen_concepto = "Preciario BESCO"
-        df_preciario = obtener_preciario_besco()
 
-        if df_preciario.empty:
-            st.warning("El Preciario BESCO no tiene registros.")
-        else:
-            df_preciario["opcion"] = df_preciario.apply(
-                lambda x: f"{x['clave']} | {x['descripcion']} | {x['unidad']} | {formatear_moneda(x['precio_unitario'])}",
-                axis=1
+        try:
+            df_preciario = obtener_preciario_besco()
+
+            if df_preciario.empty:
+                st.warning("El Preciario BESCO está vacío.")
+            else:
+                filtro_texto = st.text_input(
+                    "Buscar en Preciario BESCO",
+                    placeholder="Escribe clave, descripción, unidad o tipo de servicio"
+                ).strip().lower()
+
+                df_filtrado = df_preciario.copy()
+
+                if filtro_texto:
+                    mascara = (
+                        df_filtrado["clave"].astype(str).str.lower().str.contains(filtro_texto, na=False)
+                        | df_filtrado["descripcion"].astype(str).str.lower().str.contains(filtro_texto, na=False)
+                        | df_filtrado["unidad"].astype(str).str.lower().str.contains(filtro_texto, na=False)
+                        | df_filtrado["tipo_servicio"].astype(str).str.lower().str.contains(filtro_texto, na=False)
+                    )
+                    df_filtrado = df_filtrado[mascara].copy()
+
+                if df_filtrado.empty:
+                    st.warning("No hay coincidencias en el Preciario BESCO con ese filtro.")
+                else:
+                    df_filtrado["opcion"] = df_filtrado.apply(
+                        lambda x: (
+                            f"{str(x['clave']).strip()} | "
+                            f"{x['descripcion']} | "
+                            f"{x['unidad']} | "
+                            f"{formatear_moneda(x['precio_unitario'])}"
+                        ),
+                        axis=1
+                    )
+
+                    opcion_seleccionada = st.selectbox(
+                        "Selecciona un concepto del Preciario BESCO",
+                        options=df_filtrado["opcion"].tolist()
+                    )
+
+                    fila = df_filtrado[df_filtrado["opcion"] == opcion_seleccionada].iloc[0]
+
+                    clave_preciario = str(fila["clave"]).strip()
+                    tipo_servicio = str(fila["tipo_servicio"]).strip()
+                    descripcion = str(fila["descripcion"]).strip()
+                    unidad = str(fila["unidad"]).strip()
+                    precio_unitario = float(fila["precio_unitario"])
+
+                    col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
+
+                    with col_b1:
+                        st.text_input("Clave preciario", value=clave_preciario, disabled=True)
+
+                    with col_b2:
+                        st.text_area(
+                            "Descripción de producto o servicio",
+                            value=descripcion,
+                            height=100,
+                            disabled=True
+                        )
+
+                    with col_b3:
+                        st.text_input("Unidad", value=unidad, disabled=True)
+
+                    col_b4, col_b5 = st.columns(2)
+
+                    with col_b4:
+                        st.text_input("Tipo de servicio", value=tipo_servicio, disabled=True)
+
+                    with col_b5:
+                        st.text_input("Precio unitario", value=formatear_moneda(precio_unitario), disabled=True)
+
+        except Exception as e:
+            st.error(f"No se pudo cargar el Preciario BESCO: {e}")
+            st.warning(
+                "Mientras se corrige el vínculo o la configuración del Google Sheet, puedes usar la captura manual."
             )
+            origen_concepto = "Captura manual"
 
-            opcion_seleccionada = st.selectbox(
-                "Selecciona un concepto del Preciario BESCO",
-                options=df_preciario["opcion"].tolist()
-            )
+            col1, col2, col3 = st.columns([1, 2, 1])
 
-            fila = df_preciario[df_preciario["opcion"] == opcion_seleccionada].iloc[0]
-
-            clave_preciario = fila["clave"]
-            tipo_servicio = fila["tipo_servicio"]
-            descripcion = fila["descripcion"]
-            unidad = fila["unidad"]
-            precio_unitario = float(fila["precio_unitario"])
-
-            col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
-
-            with col_b1:
-                st.text_input("Clave preciario", value=clave_preciario, disabled=True)
-
-            with col_b2:
-                st.text_area(
-                    "Descripción de producto o servicio",
-                    value=descripcion,
-                    height=100,
-                    disabled=True
+            with col1:
+                tipo_servicio = st.selectbox(
+                    "Tipo de servicio",
+                    options=[
+                        "Servicio", "Producto", "Instalación",
+                        "Mantenimiento", "Refacción", "Proyecto", "Otro"
+                    ],
+                    index=0
                 )
 
-            with col_b3:
-                st.text_input("Unidad", value=unidad, disabled=True)
+            with col2:
+                descripcion = st.text_area(
+                    "Descripción de producto o servicio",
+                    placeholder="Escribe la descripción del producto o servicio...",
+                    height=100
+                )
 
-            col_b4, col_b5 = st.columns(2)
+            with col3:
+                unidad = st.selectbox(
+                    "Unidad",
+                    options=[
+                        "PZA", "SERVICIO", "LOTE", "PAQUETE", "HORA",
+                        "DÍA", "MES", "M2", "M3", "KG", "LITRO", "OTRA"
+                    ],
+                    index=0
+                )
 
-            with col_b4:
-                st.text_input("Tipo de servicio", value=tipo_servicio, disabled=True)
+            precio_unitario = st.number_input(
+                "Precio unitario",
+                min_value=0.00,
+                value=0.00,
+                step=0.01,
+                format="%.2f"
+            )
 
-            with col_b5:
-                st.text_input("Precio unitario", value=formatear_moneda(precio_unitario), disabled=True)
-
-    # ==========================
-    # MODO CAPTURA MANUAL
-    # ==========================
     else:
         col1, col2, col3 = st.columns([1, 2, 1])
 
@@ -400,9 +640,6 @@ with st.container(border=True):
             format="%.2f"
         )
 
-    # ==========================
-    # UTILIDAD Y PRECIO DE VENTA
-    # ==========================
     st.markdown("### Cálculo de utilidad y precio de venta")
 
     col4, col5, col6 = st.columns(3)
@@ -446,7 +683,7 @@ with st.container(border=True):
 
     if agregar:
         if not str(descripcion).strip():
-            st.warning("Debes capturar o seleccionar la **descripción de producto o servicio**.")
+            st.warning("Debes capturar o seleccionar la descripción de producto o servicio.")
         else:
             datos = st.session_state.datos_cotizacion
 
@@ -478,7 +715,7 @@ with st.container(border=True):
 
 
 # ==========================================
-# RESUMEN DE IDENTIFICACIÓN
+# SECCIÓN 3: RESUMEN DE IDENTIFICACIÓN
 # ==========================================
 st.markdown("## 3. Resumen de identificación")
 
@@ -506,7 +743,7 @@ with st.container(border=True):
 
 
 # ==========================================
-# TABLA DE CONCEPTOS
+# SECCIÓN 4: CONCEPTOS CAPTURADOS
 # ==========================================
 st.markdown("## 4. Conceptos capturados")
 
@@ -552,13 +789,12 @@ if st.session_state.conceptos_cotizacion:
         if st.button("♻️ Limpiar toda la cotización", use_container_width=True):
             limpiar_cotizacion()
             st.rerun()
-
 else:
     st.info("Aún no hay conceptos agregados a la cotización.")
 
 
 # ==========================================
-# FÓRMULA UTILIZADA
+# APOYO TÉCNICO
 # ==========================================
 with st.expander("Ver fórmula utilizada para el precio de venta"):
     st.write("**Precio venta = Precio unitario x (1 + Utilidad % / 100)**")
@@ -567,9 +803,38 @@ with st.expander("Ver fórmula utilizada para el precio de venta"):
         language="python"
     )
 
+with st.expander("Diagnóstico de conexión con Preciario BESCO"):
+    try:
+        url_detectada = valor_secreto(
+            "BESCO_PRECIARIO_URL",
+            "PRECIARIO_BESCO_URL",
+            "GOOGLE_SHEETS_URL",
+            "PRECIARIO_URL",
+            default=""
+        )
+        key_detectada = valor_secreto(
+            "BESCO_PRECIARIO_KEY",
+            "PRECIARIO_BESCO_KEY",
+            "GOOGLE_SHEETS_KEY",
+            "PRECIARIO_KEY",
+            default=""
+        )
+        worksheet_detectada = valor_secreto(
+            "BESCO_PRECIARIO_WORKSHEET",
+            "PRECIARIO_BESCO_WORKSHEET",
+            "GOOGLE_SHEETS_WORKSHEET",
+            "PRECIARIO_WORKSHEET",
+            default=""
+        )
 
-# ==========================================
-# PRECIARIO BESCO DE REFERENCIA
-# ==========================================
-with st.expander("Ver Preciario BESCO de referencia cargado en esta versión"):
-    st.dataframe(obtener_preciario_besco(), use_container_width=True, hide_index=True)
+        st.write(f"**URL detectada:** {'Sí' if url_detectada else 'No'}")
+        st.write(f"**KEY detectada:** {'Sí' if key_detectada else 'No'}")
+        st.write(f"**Worksheet configurada:** {worksheet_detectada if worksheet_detectada else 'Primera hoja'}")
+
+        if st.button("🔄 Probar carga del Preciario BESCO", use_container_width=True):
+            df_test = obtener_preciario_besco()
+            st.success(f"Preciario cargado correctamente. Registros encontrados: {len(df_test)}")
+            st.dataframe(df_test.head(20), use_container_width=True, hide_index=True)
+
+    except Exception as e:
+        st.error(f"Diagnóstico: {e}")
