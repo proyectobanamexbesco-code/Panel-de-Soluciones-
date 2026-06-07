@@ -37,24 +37,36 @@ if not df_precios.empty:
     if not columnas_pu:
         columnas_pu = ["PU"]
         
-    st.markdown("### 1. Datos Generales")
-    
     with st.form("cotizador_form"):
+        # SECCIÓN 1: Cliente y Proyecto
+        st.markdown("### 1. Datos de Identificación del Cliente")
         col1, col2 = st.columns(2)
         
         with col1:
             cliente = st.text_input("CLIENTE:", placeholder="Ej. SMARTFIT")
             inmueble = st.text_input("INMUEBLE:", placeholder="Ej. EDIFICIO CORPORATIVO")
             region_precio = st.selectbox("Región de Precios (PU):", columnas_pu)
-            cotizador_nombre = st.text_input("ELABORÓ / COTIZÓ (Tu nombre):", value="")
-            cotizador_puesto = st.selectbox("PUESTO:", ["Gerente Regional", "Gerente de Servicio", "Supervisor", "Jefe de Oficina", "Cotizador"])
             
         with col2:
             reporte = st.text_input("# DE TICKET / REPORTE CLIENTE (Opcional):", placeholder="Ej. OC-0002")
             atencion = st.text_input("ATENCIÓN:", value="A QUIEN CORRESPONDA")
             titulo_cotizacion = st.text_input("TIPO DE TRABAJO / TÍTULO:", placeholder="Ej. REPARACIÓN DE FUGA")
 
-        st.markdown("### 2. Conceptos a Cotizar")
+        st.markdown("---")
+        
+        # SECCIÓN 2: Cotizador
+        st.markdown("### 2. Datos del Cotizador")
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            cotizador_nombre = st.text_input("ELABORÓ / COTIZÓ (Tu nombre):", value="", placeholder="Ej. GERARDO MENDEZ")
+        with col4:
+            cotizador_puesto = st.selectbox("PUESTO:", ["Gerente Regional", "Gerente de Servicio", "Supervisor", "Jefe de Oficina", "Cotizador"])
+
+        st.markdown("---")
+
+        # SECCIÓN 3: Conceptos a Cotizar
+        st.markdown("### 3. Conceptos a Cotizar")
         conceptos_seleccionados = st.multiselect("Busca y selecciona los servicios:", df_precios[columna_conceptos].tolist())
         
         datos_para_pdf = []
@@ -161,7 +173,6 @@ if not df_precios.empty:
                     pdf.set_font('Arial', '', 9)
                     pdf.cell(80, 5, atencion.upper(), 0, 1, 'L')
                     
-                    # Si ingresó reporte de cliente, lo agregamos abajo
                     if reporte:
                         pdf.set_font('Arial', 'B', 9)
                         pdf.cell(35, 5, "TICKET CLIENTE:", 0, 0, 'R')
@@ -245,7 +256,6 @@ if not df_precios.empty:
                     pdf.ln(12)
                     pdf.cell(0, 4, "___________________________________", 0, 1, 'C')
                     pdf.set_font('Arial', '', 9)
-                    # Convertimos explícitamente a mayúsculas el nombre y el puesto
                     pdf.cell(0, 5, cotizador_nombre.strip().upper(), 0, 1, 'C')
                     pdf.cell(0, 5, cotizador_puesto.upper(), 0, 1, 'C')
                     pdf.set_font('Arial', 'B', 9)
@@ -253,7 +263,6 @@ if not df_precios.empty:
                     
                     pdf_bytes = pdf.output(dest='S').encode('latin-1')
                     
-                    # El botón de descarga ahora usa el folio generado como nombre de archivo
                     st.download_button(
                         label=f"📥 Descargar {folio_generado}.pdf",
                         data=pdf_bytes,
