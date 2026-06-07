@@ -45,7 +45,6 @@ if not df_precios.empty:
         with col1:
             cliente = st.text_input("CLIENTE:", placeholder="Ej. SMARTFIT")
             inmueble = st.text_input("INMUEBLE:", placeholder="Ej. EDIFICIO CORPORATIVO")
-            region_precio = st.selectbox("Región de Precios (PU):", columnas_pu)
             
         with col2:
             reporte = st.text_input("# DE TICKET / REPORTE CLIENTE (Opcional):", placeholder="Ej. OC-0002")
@@ -65,8 +64,12 @@ if not df_precios.empty:
 
         st.markdown("---")
 
-        # SECCIÓN 3: Conceptos a Cotizar
-        st.markdown("### 3. Conceptos a Cotizar")
+        # SECCIÓN 3: Conceptos a Cotizar y Precios
+        st.markdown("### 3. Conceptos a Cotizar y Precios")
+        
+        # Selector de región movido a la sección de precios
+        region_precio = st.selectbox("Región de Precios (PU):", columnas_pu)
+        
         conceptos_seleccionados = st.multiselect("Busca y selecciona los servicios:", df_precios[columna_conceptos].tolist())
         
         datos_para_pdf = []
