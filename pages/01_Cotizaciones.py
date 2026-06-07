@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import date
 
 
 # ==========================================
@@ -19,10 +20,13 @@ def inicializar_session_state():
     if "conceptos_cotizacion" not in st.session_state:
         st.session_state.conceptos_cotizacion = []
 
+    if "usar_preciario_besco" not in st.session_state:
+        st.session_state.usar_preciario_besco = False
+
     if "datos_cotizacion" not in st.session_state:
         st.session_state.datos_cotizacion = {
             "folio": "",
-            "fecha": None,
+            "fecha": date.today(),
             "cliente_nombre": "",
             "cliente_empresa": "",
             "cliente_contacto": "",
@@ -35,18 +39,62 @@ def inicializar_session_state():
         }
 
 
+def obtener_preciario_besco():
+    """
+    PRECIARIO BESCO DE EJEMPLO.
+    Aquí puedes reemplazar o ampliar con tu preciario real.
+    """
+    data = [
+        {
+            "clave": "BESCO-001",
+            "tipo_servicio": "Servicio",
+            "descripcion": "Mantenimiento preventivo a equipo",
+            "unidad": "SERVICIO",
+            "precio_unitario": 1850.00
+        },
+        {
+            "clave": "BESCO-002",
+            "tipo_servicio": "Servicio",
+            "descripcion": "Mantenimiento correctivo menor",
+            "unidad": "SERVICIO",
+            "precio_unitario": 2450.00
+        },
+        {
+            "clave": "BESCO-003",
+            "tipo_servicio": "Instalación",
+            "descripcion": "Instalación de equipo",
+            "unidad": "SERVICIO",
+            "precio_unitario": 3200.00
+        },
+        {
+            "clave": "BESCO-004",
+            "tipo_servicio": "Producto",
+            "descripcion": "Suministro de refacción estándar",
+            "unidad": "PZA",
+            "precio_unitario": 780.00
+        },
+        {
+            "clave": "BESCO-005",
+            "tipo_servicio": "Proyecto",
+            "descripcion": "Levantamiento y diagnóstico técnico",
+            "unidad": "SERVICIO",
+            "precio_unitario": 1500.00
+        }
+    ]
+    return pd.DataFrame(data)
+
+
 def calcular_precio_venta(precio_unitario: float, utilidad_porcentaje: float) -> float:
     """
-    Calcula el precio de venta a partir del precio unitario y la utilidad (%).
-    Fórmula:
-        precio_venta = precio_unitario * (1 + utilidad_porcentaje / 100)
+    Calcula el precio de venta:
+    precio_venta = precio_unitario * (1 + utilidad_porcentaje / 100)
     """
     return round(precio_unitario * (1 + (utilidad_porcentaje / 100)), 2)
 
 
 def calcular_utilidad_monto(precio_unitario: float, utilidad_porcentaje: float) -> float:
     """
-    Calcula el monto de utilidad en dinero.
+    Calcula la utilidad en monto.
     """
     return round(precio_unitario * (utilidad_porcentaje / 100), 2)
 
@@ -57,9 +105,10 @@ def formatear_moneda(valor: float) -> str:
 
 def limpiar_cotizacion():
     st.session_state.conceptos_cotizacion = []
+    st.session_state.usar_preciario_besco = False
     st.session_state.datos_cotizacion = {
         "folio": "",
-        "fecha": None,
+        "fecha": date.today(),
         "cliente_nombre": "",
         "cliente_empresa": "",
         "cliente_contacto": "",
@@ -70,6 +119,10 @@ def limpiar_cotizacion():
         "cotiza_telefono": "",
         "cotiza_correo": ""
     }
+
+
+def toggle_preciario_besco():
+    st.session_state.usar_preciario_besco = not st.session_state.usar_preciario_besco
 
 
 # ==========================================
@@ -206,53 +259,139 @@ with st.container(border=True):
 st.markdown("## 2. Concepto a cotizar")
 
 with st.container(border=True):
-    col1, col2, col3 = st.columns([1, 2, 1])
+    st.markdown("### Modo de captura del concepto")
 
-    with col1:
-        tipo_servicio = st.selectbox(
-            "Tipo de servicio",
-            options=[
-                "Servicio",
-                "Producto",
-                "Instalación",
-                "Mantenimiento",
-                "Refacción",
-                "Proyecto",
-                "Otro"
-            ],
-            index=0
+    col_m1, col_m2 = st.columns([1, 3])
+
+    with col_m1:
+        texto_boton = (
+            "📘 Deshabilitar Preciario BESCO"
+            if st.session_state.usar_preciario_besco
+            else "📘 Habilitar Preciario BESCO"
         )
 
-    with col2:
-        descripcion = st.text_area(
-            "Descripción de producto o servicio",
-            placeholder="Escribe la descripción del producto o servicio...",
-            height=100
+        st.button(
+            texto_boton,
+            on_click=toggle_preciario_besco,
+            use_container_width=True
         )
 
-    with col3:
-        unidad = st.selectbox(
-            "Unidad",
-            options=[
-                "PZA",
-                "SERVICIO",
-                "LOTE",
-                "PAQUETE",
-                "HORA",
-                "DÍA",
-                "MES",
-                "M2",
-                "M3",
-                "KG",
-                "LITRO",
-                "OTRA"
-            ],
-            index=0
-        )
+    with col_m2:
+        if st.session_state.usar_preciario_besco:
+            st.success("Modo activo: **Preciario BESCO**. Puedes seleccionar un concepto del catálogo.")
+        else:
+            st.info("Modo activo: **Captura manual**. Puedes capturar cada concepto manualmente.")
 
-    col4, col5, col6 = st.columns(3)
+    st.markdown("---")
 
-    with col4:
+    # VARIABLES DE CAPTURA
+    origen_concepto = "Captura manual"
+    clave_preciario = ""
+    tipo_servicio = ""
+    descripcion = ""
+    unidad = ""
+    precio_unitario = 0.00
+
+    # ==========================
+    # MODO PRECIARIO BESCO
+    # ==========================
+    if st.session_state.usar_preciario_besco:
+        origen_concepto = "Preciario BESCO"
+        df_preciario = obtener_preciario_besco()
+
+        if df_preciario.empty:
+            st.warning("El Preciario BESCO no tiene registros.")
+        else:
+            df_preciario["opcion"] = df_preciario.apply(
+                lambda x: f"{x['clave']} | {x['descripcion']} | {x['unidad']} | {formatear_moneda(x['precio_unitario'])}",
+                axis=1
+            )
+
+            opcion_seleccionada = st.selectbox(
+                "Selecciona un concepto del Preciario BESCO",
+                options=df_preciario["opcion"].tolist()
+            )
+
+            fila = df_preciario[df_preciario["opcion"] == opcion_seleccionada].iloc[0]
+
+            clave_preciario = fila["clave"]
+            tipo_servicio = fila["tipo_servicio"]
+            descripcion = fila["descripcion"]
+            unidad = fila["unidad"]
+            precio_unitario = float(fila["precio_unitario"])
+
+            col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
+
+            with col_b1:
+                st.text_input("Clave preciario", value=clave_preciario, disabled=True)
+
+            with col_b2:
+                st.text_area(
+                    "Descripción de producto o servicio",
+                    value=descripcion,
+                    height=100,
+                    disabled=True
+                )
+
+            with col_b3:
+                st.text_input("Unidad", value=unidad, disabled=True)
+
+            col_b4, col_b5 = st.columns(2)
+
+            with col_b4:
+                st.text_input("Tipo de servicio", value=tipo_servicio, disabled=True)
+
+            with col_b5:
+                st.text_input("Precio unitario", value=formatear_moneda(precio_unitario), disabled=True)
+
+    # ==========================
+    # MODO CAPTURA MANUAL
+    # ==========================
+    else:
+        col1, col2, col3 = st.columns([1, 2, 1])
+
+        with col1:
+            tipo_servicio = st.selectbox(
+                "Tipo de servicio",
+                options=[
+                    "Servicio",
+                    "Producto",
+                    "Instalación",
+                    "Mantenimiento",
+                    "Refacción",
+                    "Proyecto",
+                    "Otro"
+                ],
+                index=0
+            )
+
+        with col2:
+            descripcion = st.text_area(
+                "Descripción de producto o servicio",
+                placeholder="Escribe la descripción del producto o servicio...",
+                height=100
+            )
+
+        with col3:
+            unidad = st.selectbox(
+                "Unidad",
+                options=[
+                    "PZA",
+                    "SERVICIO",
+                    "LOTE",
+                    "PAQUETE",
+                    "HORA",
+                    "DÍA",
+                    "MES",
+                    "M2",
+                    "M3",
+                    "KG",
+                    "LITRO",
+                    "OTRA"
+                ],
+                index=0
+            )
+
         precio_unitario = st.number_input(
             "Precio unitario",
             min_value=0.00,
@@ -261,7 +400,14 @@ with st.container(border=True):
             format="%.2f"
         )
 
-    with col5:
+    # ==========================
+    # UTILIDAD Y PRECIO DE VENTA
+    # ==========================
+    st.markdown("### Cálculo de utilidad y precio de venta")
+
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
         utilidad_pct = st.number_input(
             "Utilidad (%)",
             min_value=0.00,
@@ -271,13 +417,18 @@ with st.container(border=True):
             help="Porcentaje de utilidad. Ejemplo: 23.55"
         )
 
-    precio_venta = calcular_precio_venta(precio_unitario, utilidad_pct)
     utilidad_monto = calcular_utilidad_monto(precio_unitario, utilidad_pct)
+    precio_venta = calcular_precio_venta(precio_unitario, utilidad_pct)
+
+    with col5:
+        st.metric(
+            label="Utilidad en monto",
+            value=formatear_moneda(utilidad_monto)
+        )
 
     with col6:
-        st.markdown("##### Precio venta")
         st.metric(
-            label="Calculado automáticamente",
+            label="Precio venta",
             value=formatear_moneda(precio_venta)
         )
 
@@ -285,7 +436,7 @@ with st.container(border=True):
 
     col7, col8, col9 = st.columns(3)
     with col7:
-        st.info(f"**Utilidad en monto:** {formatear_moneda(utilidad_monto)}")
+        st.info(f"**Origen del concepto:** {origen_concepto}")
     with col8:
         st.info(f"**Precio unitario:** {formatear_moneda(precio_unitario)}")
     with col9:
@@ -294,8 +445,8 @@ with st.container(border=True):
     agregar = st.button("➕ Agregar concepto", use_container_width=True)
 
     if agregar:
-        if not descripcion.strip():
-            st.warning("Debes capturar la **descripción de producto o servicio**.")
+        if not str(descripcion).strip():
+            st.warning("Debes capturar o seleccionar la **descripción de producto o servicio**.")
         else:
             datos = st.session_state.datos_cotizacion
 
@@ -311,13 +462,15 @@ with st.container(border=True):
                 "Puesto": datos["cotiza_puesto"],
                 "Teléfono quien cotiza": datos["cotiza_telefono"],
                 "Correo quien cotiza": datos["cotiza_correo"],
+                "Origen concepto": origen_concepto,
+                "Clave preciario": clave_preciario,
                 "Tipo de servicio": tipo_servicio,
-                "Descripción de producto o servicio": descripcion.strip(),
+                "Descripción de producto o servicio": str(descripcion).strip(),
                 "Unidad": unidad,
-                "Precio unitario": round(precio_unitario, 2),
-                "Utilidad (%)": round(utilidad_pct, 2),
-                "Utilidad ($)": utilidad_monto,
-                "Precio venta": precio_venta
+                "Precio unitario": round(float(precio_unitario), 2),
+                "Utilidad (%)": round(float(utilidad_pct), 2),
+                "Utilidad ($)": round(float(utilidad_monto), 2),
+                "Precio venta": round(float(precio_venta), 2)
             }
 
             st.session_state.conceptos_cotizacion.append(nuevo_concepto)
@@ -413,3 +566,10 @@ with st.expander("Ver fórmula utilizada para el precio de venta"):
         "precio_venta = precio_unitario * (1 + utilidad_porcentaje / 100)",
         language="python"
     )
+
+
+# ==========================================
+# PRECIARIO BESCO DE REFERENCIA
+# ==========================================
+with st.expander("Ver Preciario BESCO de referencia cargado en esta versión"):
+    st.dataframe(obtener_preciario_besco(), use_container_width=True, hide_index=True)
