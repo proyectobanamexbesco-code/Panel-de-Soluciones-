@@ -1,9 +1,23 @@
+"""
+cotizaciones.py — Módulo de Cotizaciones · Grupo Besco S.A. de C.V.
+Versión consolidada: captura manual + Preciario (Sodexo/BESCO),
+generación de PDF con FPDF y persistencia en Google Sheets.
+"""
+
+import io
 import json
 import os
+import unicodedata
 from datetime import date
 
 import pandas as pd
 import streamlit as st
+
+try:
+    from fpdf import FPDF
+    FPDF_DISPONIBLE = True
+except ImportError:
+    FPDF_DISPONIBLE = False
 
 try:
     import gspread
@@ -15,133 +29,145 @@ except ImportError:
     GSPREAD_DISPONIBLE = False
 
 
-# ==========================================
+# ══════════════════════════════════════════
 # CONFIGURACIÓN DE PÁGINA
-# ==========================================
+# ══════════════════════════════════════════
 st.set_page_config(
-    page_title="Cotizaciones",
-    page_icon="💰",
+    page_title="Cotizaciones · Besco",
+    page_icon="📋",
     layout="wide"
 )
 
 
-# ==========================================
+# ══════════════════════════════════════════
 # CONSTANTES
-# ==========================================
+# ══════════════════════════════════════════
+EMPRESA_NOMBRE = "Grupo Besco S.A. de C.V."
+EMPRESA_DIRECCION = "Jose Ignacio Bartolache 1910, CDMX"
+EMPRESA_EMAIL = "contacto@besco.mx"
+
+IVA = 0.16
+
 TIPOS_SERVICIO = [
-    "Servicio", "Producto", "Instalación",
-    "Mantenimiento", "Refacción", "Proyecto", "Otro"
+    "Aire Acondicionado", "Eléctrico", "Luminarias",
+    "Hidrosanitario", "Acabados", "Otros"
 ]
 
-UNIDADES = [
-    "PZA", "SERVICIO", "LOTE", "PAQUETE", "HORA",
-    "DÍA", "MES", "M2", "M3", "KG", "LITRO", "OTRA"
+OPCIONES_UNIDAD = [
+    "Pieza", "Caja", "Metro", "Metro Lineal", "Kilo",
+    "Metro Cuadrado (m2)", "Litro", "Servicio", "Hora", "Lote"
+]
+
+REGIONES_PRECIARIO = [
+    "PU BAJÍO", "PU NOROESTE", "PU PENINSULAR",
+    "PU METRO NORTE & SUR", "PU OCCIDENTE",
+    "PU SUR", "PU NORTE", "PU CENTRO"
+]
+
+PUESTOS_COTIZADOR = [
+    "Gerente Regional", "Gerente de Servicio",
+    "Jefe de Oficina", "Supervisor", "Otro"
+]
+
+OPCIONES_PAGO = [
+    "30% Anticipo / 70% al término",
+    "50% Anticipo / 50% al término",
+    "100% al término",
+    "A convenir"
 ]
 
 CLAVES_URL_PRECIARIO = [
     "BESCO_PRECIARIO_URL", "PRECIARIO_BESCO_URL",
-    "GOOGLE_SHEETS_URL", "PRECIARIO_URL"
+    "SODEXO_PRECIARIO_URL", "GOOGLE_SHEETS_URL"
 ]
-
 CLAVES_KEY_PRECIARIO = [
     "BESCO_PRECIARIO_KEY", "PRECIARIO_BESCO_KEY",
-    "GOOGLE_SHEETS_KEY", "PRECIARIO_KEY"
+    "SODEXO_PRECIARIO_KEY", "GOOGLE_SHEETS_KEY"
 ]
-
 CLAVES_WORKSHEET_PRECIARIO = [
     "BESCO_PRECIARIO_WORKSHEET", "PRECIARIO_BESCO_WORKSHEET",
-    "GOOGLE_SHEETS_WORKSHEET", "PRECIARIO_WORKSHEET"
+    "SODEXO_WORKSHEET", "GOOGLE_SHEETS_WORKSHEET"
+]
+CLAVES_HISTORIAL_WORKSHEET = [
+    "HISTORIAL_WORKSHEET", "BESCO_HISTORIAL_WORKSHEET"
 ]
 
-IVA_PORCENTAJE = 16.0
+LOGO_PATH = "logo_besco.png"
 
 
-# ==========================================
+# ══════════════════════════════════════════
 # ESTADO INICIAL
-# ==========================================
-def _datos_cotizacion_vacios() -> dict:
-    return {
-        "folio": "",
-        "fecha": date.today(),
-        "cliente_nombre": "",
-        "cliente_empresa": "",
-        "cliente_contacto": "",
-        "cliente_telefono": "",
-        "cliente_correo": "",
-        "cotiza_nombre": "",
-        "cotiza_puesto": "",
-        "cotiza_telefono": "",
-        "cotiza_correo": "",
-    }
-
-
+# ══════════════════════════════════════════
 def inicializar_session_state():
-    if "conceptos_cotizacion" not in st.session_state:
-        st.session_state.conceptos_cotizacion = []
-
-    if "usar_preciario_besco" not in st.session_state:
-        st.session_state.usar_preciario_besco = False
-
-    if "datos_cotizacion" not in st.session_state:
-        st.session_state.datos_cotizacion = _datos_cotizacion_vacios()
-
-
-def limpiar_cotizacion():
-    st.session_state.conceptos_cotizacion = []
-    st.session_state.usar_preciario_besco = False
-    st.session_state.datos_cotizacion = _datos_cotizacion_vacios()
+    defaults = {
+        "conceptos": [],
+        "usar_preciario": False,
+        "mensaje_exito": None,
+        "mensaje_error": None,
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
 
-def toggle_preciario_besco():
-    st.session_state.usar_preciario_besco = not st.session_state.usar_preciario_besco
+def limpiar_conceptos():
+    st.session_state.conceptos = []
 
 
-# ==========================================
-# FUNCIONES DE CÁLCULO Y FORMATO
-# ==========================================
-def calcular_precio_venta(precio_unitario: float, utilidad_pct: float) -> float:
-    return round(precio_unitario * (1 + utilidad_pct / 100), 2)
-
-
-def calcular_utilidad_monto(precio_unitario: float, utilidad_pct: float) -> float:
-    return round(precio_unitario * (utilidad_pct / 100), 2)
+# ══════════════════════════════════════════
+# UTILIDADES GENERALES
+# ══════════════════════════════════════════
+def limpiar_texto(texto: str) -> str:
+    """Elimina caracteres no Latin-1 para compatibilidad con FPDF."""
+    if not isinstance(texto, str):
+        texto = str(texto)
+    return unicodedata.normalize("NFKD", texto).encode("latin-1", "replace").decode("latin-1")
 
 
 def formatear_moneda(valor: float) -> str:
     return f"${float(valor):,.2f}"
 
 
-# ==========================================
+def calcular_precio_venta(costo: float, utilidad_pct: float) -> float:
+    return round(costo * (1 + utilidad_pct / 100), 2)
+
+
+def generar_folio(nombre_cotizador: str, fecha: date,
+                  cliente_base: str, descripcion: str) -> str:
+    if nombre_cotizador and cliente_base and descripcion:
+        iniciales = "".join(p[0].upper() for p in nombre_cotizador.split() if p)
+        cliente_cod = cliente_base.replace(" ", "").upper()[:6]
+        desc_cod = descripcion.replace(" ", "").upper()[:6]
+        return f"{iniciales}-{fecha.strftime('%d%m%Y')}-{cliente_cod}-{desc_cod}"
+    return "Completar datos para generar folio"
+
+
+# ══════════════════════════════════════════
 # ACCESO A SECRETS / ENV
-# ==========================================
+# ══════════════════════════════════════════
 def valor_secreto(*claves, default=None):
-    """Busca una clave en st.secrets y luego en variables de entorno."""
     for clave in claves:
         try:
             if clave in st.secrets:
                 return st.secrets[clave]
         except Exception:
             pass
-
         valor_env = os.getenv(clave)
         if valor_env:
             return valor_env
-
     return default
 
 
-# ==========================================
+# ══════════════════════════════════════════
 # GOOGLE SHEETS — CREDENCIALES Y CLIENTE
-# ==========================================
-def obtener_credenciales_gcp() -> "Credentials":
+# ══════════════════════════════════════════
+def obtener_credenciales_gcp():
     if not GSPREAD_DISPONIBLE:
-        raise RuntimeError(
-            "Dependencias faltantes: agrega 'gspread' y 'google-auth' a requirements.txt."
-        )
+        raise RuntimeError("Instala 'gspread' y 'google-auth' en requirements.txt.")
 
     scopes = [
-        "https://www.googleapis.com/auth/spreadsheets.readonly",
-        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
     ]
 
     for clave in ("gcp_service_account", "GOOGLE_SERVICE_ACCOUNT"):
@@ -162,580 +188,643 @@ def obtener_credenciales_gcp() -> "Credentials":
     )
 
 
-def construir_cliente_gspread() -> "gspread.Client":
+def construir_cliente_gspread():
     creds = obtener_credenciales_gcp()
-    # gspread.authorize() está deprecado desde v5; se usa Client directamente.
+    # gspread.authorize() deprecado desde v5; se usa Client directamente
     return gspread.Client(auth=creds)
 
 
-def _abrir_spreadsheet(gc: "gspread.Client") -> "gspread.Spreadsheet":
-    url = valor_secreto(*CLAVES_URL_PRECIARIO, default=None)
+def _abrir_spreadsheet(gc, claves_url: list, claves_key: list):
+    url = valor_secreto(*claves_url, default=None)
     if url:
         return gc.open_by_url(url)
-
-    key = valor_secreto(*CLAVES_KEY_PRECIARIO, default=None)
+    key = valor_secreto(*claves_key, default=None)
     if key:
         return gc.open_by_key(key)
-
     raise RuntimeError(
-        "No se encontró URL ni clave del Preciario BESCO "
-        "en st.secrets o variables de entorno."
+        "No se encontró URL ni clave del spreadsheet en st.secrets o variables de entorno."
     )
 
 
-def _cargar_registros_hoja() -> list[dict]:
-    """Abre el spreadsheet y devuelve los registros sin caché de objetos gspread."""
+# ══════════════════════════════════════════
+# PRECIARIO — CARGA Y NORMALIZACIÓN
+# ══════════════════════════════════════════
+def _cargar_registros_preciario() -> list:
     gc = construir_cliente_gspread()
-    spreadsheet = _abrir_spreadsheet(gc)
-
-    worksheet_name = valor_secreto(*CLAVES_WORKSHEET_PRECIARIO, default=None)
+    spreadsheet = _abrir_spreadsheet(gc, CLAVES_URL_PRECIARIO, CLAVES_KEY_PRECIARIO)
+    ws_name = valor_secreto(*CLAVES_WORKSHEET_PRECIARIO, default=None)
     worksheet = (
-        spreadsheet.worksheet(worksheet_name)
-        if worksheet_name
+        spreadsheet.worksheet(ws_name)
+        if ws_name
         else spreadsheet.get_worksheet(0)
     )
     return worksheet.get_all_records()
 
 
-# ==========================================
-# NORMALIZACIÓN DEL PRECIARIO
-# ==========================================
-def normalizar_columnas_preciario(df: pd.DataFrame) -> pd.DataFrame:
-    """Estandariza encabezados del Google Sheet independientemente de su capitalización."""
+def normalizar_preciario(df: pd.DataFrame) -> pd.DataFrame:
+    """Estandariza encabezados y tipos del preciario."""
     df = df.copy()
-
     mapa = {}
     for col in df.columns:
         cn = str(col).strip().lower()
-
-        if cn in {"clave", "codigo", "código", "id", "sku"}:
-            mapa[col] = "clave"
-        elif cn in {"tipo_servicio", "tipo de servicio", "tipo", "servicio"}:
-            mapa[col] = "tipo_servicio"
-        elif cn in {
-            "descripcion", "descripción",
-            "descripcion de producto o servicio",
-            "descripción de producto o servicio",
-            "concepto", "producto", "servicio_descripcion"
-        }:
-            mapa[col] = "descripcion"
+        if cn in {"item", "id", "clave", "codigo", "código", "sku"}:
+            mapa[col] = "item"
+        elif cn in {"concepto", "descripcion", "descripción", "producto", "servicio"}:
+            mapa[col] = "Concepto"
         elif cn in {"unidad", "uom", "um"}:
-            mapa[col] = "unidad"
-        elif cn in {
-            "precio_unitario", "precio unitario",
-            "precio", "costo", "costo unitario"
-        }:
-            mapa[col] = "precio_unitario"
-
+            mapa[col] = "Unidad"
     df = df.rename(columns=mapa)
 
-    obligatorias = {"tipo_servicio", "descripcion", "unidad", "precio_unitario"}
-    faltantes = obligatorias - set(df.columns)
-    if faltantes:
+    if "Concepto" not in df.columns:
         raise ValueError(
-            f"El Preciario BESCO no tiene columnas requeridas. "
-            f"Faltan: {', '.join(sorted(faltantes))}. "
-            f"Detectadas: {', '.join(str(c) for c in df.columns)}"
+            f"El preciario no tiene columna de concepto/descripción. "
+            f"Columnas detectadas: {', '.join(str(c) for c in df.columns)}"
         )
+    if "item" not in df.columns:
+        df["item"] = ""
+    if "Unidad" not in df.columns:
+        df["Unidad"] = "Pieza"
 
-    if "clave" not in df.columns:
-        df["clave"] = ""
+    # Limpiar columnas de precio (regiones)
+    for col in df.columns:
+        if col not in ("item", "Concepto", "Unidad"):
+            df[col] = (
+                df[col].astype(str)
+                .str.replace("$", "", regex=False)
+                .str.replace(",", "", regex=False)
+                .str.strip()
+            )
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
 
-    df["tipo_servicio"] = df["tipo_servicio"].fillna("").astype(str)
-    df["descripcion"] = df["descripcion"].fillna("").astype(str)
-    df["unidad"] = df["unidad"].fillna("").astype(str)
-    df["precio_unitario"] = (
-        df["precio_unitario"]
-        .astype(str)
-        .str.replace("$", "", regex=False)
-        .str.replace(",", "", regex=False)
-        .str.strip()
-    )
-    df["precio_unitario"] = pd.to_numeric(df["precio_unitario"], errors="coerce").fillna(0.0)
-
-    df = df[df["descripcion"].str.strip() != ""].reset_index(drop=True)
+    df = df[df["Concepto"].astype(str).str.strip() != ""].reset_index(drop=True)
     return df
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def obtener_preciario_besco() -> pd.DataFrame:
-    """Carga y normaliza el Preciario BESCO desde Google Sheets (caché 5 min)."""
-    registros = _cargar_registros_hoja()
-
+def cargar_preciario() -> pd.DataFrame:
+    """Carga el preciario desde Google Sheets con caché de 5 min."""
+    registros = _cargar_registros_preciario()
     if not registros:
-        return pd.DataFrame(
-            columns=["clave", "tipo_servicio", "descripcion", "unidad", "precio_unitario"]
-        )
-
+        return pd.DataFrame()
     df = pd.DataFrame(registros)
-    return normalizar_columnas_preciario(df)
+    return normalizar_preciario(df)
 
 
-# ==========================================
-# COMPONENTES DE UI REUTILIZABLES
-# ==========================================
-def ui_captura_manual():
-    """Renderiza los campos de captura manual y devuelve los valores."""
-    col1, col2, col3 = st.columns([1, 2, 1])
-
-    with col1:
-        tipo_servicio = st.selectbox("Tipo de servicio", options=TIPOS_SERVICIO)
-
-    with col2:
-        descripcion = st.text_area(
-            "Descripción de producto o servicio",
-            placeholder="Escribe la descripción del producto o servicio...",
-            height=100
-        )
-
-    with col3:
-        unidad = st.selectbox("Unidad", options=UNIDADES)
-
-    precio_unitario = st.number_input(
-        "Precio unitario", min_value=0.00, value=0.00, step=0.01, format="%.2f"
-    )
-
-    return "", tipo_servicio, descripcion, unidad, precio_unitario
-
-
-def ui_captura_desde_preciario():
+# ══════════════════════════════════════════
+# HISTORIAL — GUARDADO EN GOOGLE SHEETS
+# ══════════════════════════════════════════
+def guardar_historial(df_conceptos: pd.DataFrame, meta: dict):
     """
-    Renderiza la búsqueda y selección del Preciario BESCO.
-    Devuelve (clave, tipo_servicio, descripcion, unidad, precio_unitario).
-    Lanza excepción si el Preciario no carga.
+    Agrega filas al historial de cotizaciones en Google Sheets.
+    No lanza excepción al fallar; registra el mensaje en session_state.
     """
-    df_preciario = obtener_preciario_besco()
+    try:
+        gc = construir_cliente_gspread()
+        spreadsheet = _abrir_spreadsheet(gc, CLAVES_URL_PRECIARIO, CLAVES_KEY_PRECIARIO)
 
-    if df_preciario.empty:
-        st.warning("El Preciario BESCO está vacío.")
-        return "", "", "", "", 0.00
+        ws_name = valor_secreto(*CLAVES_HISTORIAL_WORKSHEET, default="Historial")
+        try:
+            ws = spreadsheet.worksheet(ws_name)
+        except Exception:
+            ws = spreadsheet.add_worksheet(ws_name, rows=1000, cols=30)
 
-    filtro = st.text_input(
-        "Buscar en Preciario BESCO",
-        placeholder="Clave, descripción, unidad o tipo de servicio"
-    ).strip().lower()
+        filas_existentes = ws.get_all_values()
+        encabezado = [
+            "Folio", "Fecha", "Cliente", "Institución", "Dirección",
+            "Tel. Cliente", "Email Cliente",
+            "Cotizador", "Puesto", "Email Cotizador", "Tel. Cotizador",
+            "Proyecto", "Ubicación",
+            "Tipo", "Concepto", "Cant.", "Unidad",
+            "Costo U.", "Precio Venta", "Importe",
+            "Subtotal", "IVA", "Total",
+            "Moneda", "Tiempo Entrega", "Pago", "Vigencia", "Garantía"
+        ]
+        if not filas_existentes:
+            ws.append_row(encabezado)
 
-    df_filtrado = df_preciario.copy()
+        filas_nuevas = []
+        for _, fila in df_conceptos.iterrows():
+            filas_nuevas.append([
+                meta["folio"], str(meta["fecha"]),
+                meta["nombre_cliente"], meta["institucion_cliente"],
+                meta["direccion_cliente"], meta["telefono_cliente"],
+                meta["email_cliente"],
+                meta["nombre_cotizador"], meta["puesto_cotizador"],
+                meta["email_cotizador"], meta["telefono_cotizador"],
+                meta["descripcion_proyecto"], meta["ubicacion"],
+                str(fila.get("Tipo", "")), str(fila.get("Concepto", "")),
+                float(fila.get("Cant.", 0)), str(fila.get("Unidad", "")),
+                float(fila.get("Costo U.", 0)), float(fila.get("Precio Venta", 0)),
+                float(fila.get("Importe", 0)),
+                meta["subtotal"], meta["iva"], meta["total"],
+                meta["tipo_moneda"], meta["tiempo_entrega"],
+                meta["condiciones_pago"], meta["vigencia"], meta["garantia"]
+            ])
 
-    if filtro:
-        mascara = (
-            df_filtrado["clave"].astype(str).str.lower().str.contains(filtro, na=False)
-            | df_filtrado["descripcion"].str.lower().str.contains(filtro, na=False)
-            | df_filtrado["unidad"].str.lower().str.contains(filtro, na=False)
-            | df_filtrado["tipo_servicio"].str.lower().str.contains(filtro, na=False)
+        if filas_nuevas:
+            ws.append_rows(filas_nuevas)
+
+        st.session_state.mensaje_exito = (
+            f"✅ Historial guardado correctamente ({len(filas_nuevas)} renglones)."
         )
-        df_filtrado = df_filtrado[mascara].copy()
+    except Exception as e:
+        st.session_state.mensaje_error = f"⚠️ No se pudo guardar el historial: {e}"
 
-    if df_filtrado.empty:
-        st.warning("Sin coincidencias en el Preciario BESCO con ese filtro.")
-        return "", "", "", "", 0.00
 
-    df_filtrado["_opcion"] = df_filtrado.apply(
-        lambda x: (
-            f"{str(x['clave']).strip()} | "
-            f"{x['descripcion']} | "
-            f"{x['unidad']} | "
-            f"{formatear_moneda(x['precio_unitario'])}"
-        ),
-        axis=1
+# ══════════════════════════════════════════
+# GENERACIÓN DE PDF
+# ══════════════════════════════════════════
+def generar_pdf(
+    df_conceptos: pd.DataFrame,
+    meta: dict,
+    subtotal: float,
+    iva: float,
+    total: float
+) -> bytes:
+    """Genera el PDF de cotización y lo devuelve como bytes."""
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # ── Encabezado ──
+    if LOGO_PATH and os.path.exists(LOGO_PATH):
+        pdf.image(LOGO_PATH, x=10, y=5, w=50)
+
+    pdf.set_fill_color(230, 230, 230)
+    pdf.rect(10, 35, 190, 32, "DF")
+    pdf.set_y(37)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(110, 5, limpiar_texto(EMPRESA_NOMBRE))
+    pdf.cell(80, 5, f"Fecha: {meta['fecha'].strftime('%d/%m/%Y')}", ln=True, align="R")
+    pdf.cell(110, 5, limpiar_texto(EMPRESA_DIRECCION))
+    pdf.cell(80, 5, f"No. Presupuesto: {limpiar_texto(meta['folio'])}", ln=True, align="R")
+    pdf.cell(110, 5, limpiar_texto(f"Email: {meta['email_cotizador']}"))
+    pdf.cell(80, 5, f"Cotizador: {limpiar_texto(meta['nombre_cotizador'])}", ln=True, align="R")
+
+    # ── Datos cliente / proyecto ──
+    pdf.set_y(72)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(100, 5, "DATOS DEL CLIENTE:")
+    pdf.cell(90, 5, "PROYECTO:", ln=True)
+    pdf.set_font("Helvetica", size=9)
+
+    y_inicio = pdf.get_y()
+    pdf.set_xy(10, y_inicio)
+    pdf.multi_cell(
+        90, 4,
+        f"Cliente: {limpiar_texto(meta['nombre_cliente'])}\n"
+        f"Inst: {limpiar_texto(meta['institucion_cliente'])}\n"
+        f"Dir: {limpiar_texto(meta['direccion_cliente'])}\n"
+        f"Tel: {limpiar_texto(meta['telefono_cliente'])}\n"
+        f"Email: {limpiar_texto(meta['email_cliente'])}"
     )
-
-    opcion = st.selectbox(
-        "Selecciona un concepto del Preciario BESCO",
-        options=df_filtrado["_opcion"].tolist()
+    y_left = pdf.get_y()
+    pdf.set_xy(105, y_inicio)
+    pdf.multi_cell(
+        95, 4,
+        f"Proyecto: {limpiar_texto(meta['descripcion_proyecto'])}\n"
+        f"Ubicacion: {limpiar_texto(meta['ubicacion'])}\n"
+        f"Cotizador: {limpiar_texto(meta['nombre_cotizador'])}\n"
+        f"Puesto: {limpiar_texto(meta['puesto_cotizador'])}\n"
+        f"Tel: {limpiar_texto(meta['telefono_cotizador'])}"
     )
+    pdf.set_y(max(y_left, pdf.get_y()) + 4)
 
-    fila = df_filtrado[df_filtrado["_opcion"] == opcion].iloc[0]
+    # ── Tabla de conceptos ──
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(200, 200, 200)
+    pdf.cell(28, 6, "Tipo", 1, 0, "L", True)
+    pdf.cell(72, 6, "Concepto", 1, 0, "L", True)
+    pdf.cell(14, 6, "Cant.", 1, 0, "C", True)
+    pdf.cell(18, 6, "Unidad", 1, 0, "C", True)
+    pdf.cell(28, 6, "Precio Venta", 1, 0, "R", True)
+    pdf.cell(30, 6, "Importe", 1, 1, "R", True)
 
-    clave = str(fila["clave"]).strip()
-    tipo_servicio = str(fila["tipo_servicio"]).strip()
-    descripcion = str(fila["descripcion"]).strip()
-    unidad = str(fila["unidad"]).strip()
-    precio_unitario = float(fila["precio_unitario"])
+    pdf.set_font("Helvetica", size=8)
+    for _, fila in df_conceptos.iterrows():
+        if pdf.get_y() > 250:
+            pdf.add_page()
 
-    col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
-    with col_b1:
-        st.text_input("Clave preciario", value=clave, disabled=True)
-    with col_b2:
-        st.text_area("Descripción", value=descripcion, height=100, disabled=True)
-    with col_b3:
-        st.text_input("Unidad", value=unidad, disabled=True)
+        y_s = pdf.get_y()
+        pdf.set_xy(10, y_s + 1)
+        pdf.multi_cell(28, 4, limpiar_texto(str(fila.get("Tipo", ""))))
+        y_t = pdf.get_y()
+        pdf.set_xy(38, y_s + 1)
+        pdf.multi_cell(72, 4, limpiar_texto(str(fila.get("Concepto", ""))))
+        y_c = pdf.get_y()
+        pdf.set_xy(128, y_s + 1)
+        pdf.multi_cell(18, 4, limpiar_texto(str(fila.get("Unidad", ""))), align="C")
+        y_u = pdf.get_y()
 
-    col_b4, col_b5 = st.columns(2)
-    with col_b4:
-        st.text_input("Tipo de servicio", value=tipo_servicio, disabled=True)
-    with col_b5:
-        st.text_input("Precio unitario", value=formatear_moneda(precio_unitario), disabled=True)
+        h = max(y_t, y_c, y_u) - y_s + 1.5
+        if h < 6:
+            h = 6
 
-    return clave, tipo_servicio, descripcion, unidad, precio_unitario
+        pdf.set_xy(110, y_s)
+        pdf.cell(18, h, f"{float(fila.get('Cant.', 0)):.2f}", 0, 0, "C")
+        pdf.set_xy(146, y_s)
+        pdf.cell(28, h, f"${float(fila.get('Precio Venta', 0)):,.2f}", 0, 0, "R")
+        pdf.set_xy(174, y_s)
+        pdf.cell(26, h, f"${float(fila.get('Importe', 0)):,.2f}", 0, 1, "R")
+
+        pdf.rect(10, y_s, 28, h)
+        pdf.rect(38, y_s, 72, h)
+        pdf.rect(110, y_s, 18, h)
+        pdf.rect(128, y_s, 18, h)
+        pdf.rect(146, y_s, 28, h)
+        pdf.rect(174, y_s, 26, h)
+
+        pdf.set_y(y_s + h)
+
+    # ── Totales ──
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(140, 5, "")
+    pdf.cell(30, 5, "Subtotal:", 1, 0)
+    pdf.cell(30, 5, f"${subtotal:,.2f}", 1, 1, "R")
+    pdf.cell(140, 5, "")
+    pdf.cell(30, 5, "I.V.A. 16%:", 1, 0)
+    pdf.cell(30, 5, f"${iva:,.2f}", 1, 1, "R")
+    pdf.set_fill_color(200, 200, 200)
+    pdf.cell(140, 5, "")
+    pdf.cell(30, 5, "TOTAL:", 1, 0, "L", True)
+    pdf.cell(30, 5, f"${total:,.2f}", 1, 1, "R", True)
+
+    # ── Condiciones comerciales ──
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 5, "CONDICIONES COMERCIALES:", ln=True)
+    pdf.set_font("Helvetica", size=8)
+    pdf.cell(0, 4, f"- Moneda: {limpiar_texto(meta['tipo_moneda'])}  |  Tiempo de ejecucion: {limpiar_texto(meta['tiempo_entrega'])}", ln=True)
+    pdf.cell(0, 4, f"- Pago: {limpiar_texto(meta['condiciones_pago'])}  |  Vigencia: {limpiar_texto(meta['vigencia'])}  |  Garantia: {limpiar_texto(meta['garantia'])}", ln=True)
+
+    # ── Firma ──
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(0, 4, "ATENTAMENTE", ln=True, align="C")
+    pdf.set_text_color(0, 100, 180)
+    pdf.cell(0, 4, limpiar_texto(meta["nombre_cotizador"].upper()), ln=True, align="C")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", size=8)
+    pdf.cell(0, 4, limpiar_texto(meta["puesto_cotizador"]), ln=True, align="C")
+    pdf.cell(0, 4, limpiar_texto(meta["email_cotizador"]), ln=True, align="C")
+
+    return pdf.output(dest="S").encode("latin-1")
 
 
-# ==========================================
+# ══════════════════════════════════════════
 # INICIALIZAR ESTADO
-# ==========================================
+# ══════════════════════════════════════════
 inicializar_session_state()
 
 
-# ==========================================
-# ENCABEZADO
-# ==========================================
-st.title("💰 Cotizaciones")
-st.markdown(
-    "Captura la información del cliente, la persona que cotiza y los conceptos a cotizar."
+# ══════════════════════════════════════════
+# ENCABEZADO DE EMPRESA
+# ══════════════════════════════════════════
+col_h1, col_h2 = st.columns([2, 1])
+with col_h1:
+    st.markdown(f"### {EMPRESA_NOMBRE}")
+    st.markdown(f"**Dirección:** {EMPRESA_DIRECCION}")
+
+folio_placeholder = col_h2.empty()
+st.title("📋 Cotizaciones")
+
+
+# ══════════════════════════════════════════
+# SECCIÓN 1 — DATOS DEL PROYECTO Y COTIZADOR
+# ══════════════════════════════════════════
+st.header("1. Datos del Proyecto y Cotizador")
+
+c1, c2 = st.columns(2)
+
+with c1:
+    nombre_cotizador = st.text_input("Responsable de cotización", value="Gerardo Méndez")
+    puesto_cotizador = st.selectbox("Puesto", PUESTOS_COTIZADOR)
+    email_cotizador = st.text_input("E-mail cotizador", value="gerardo.mendez@besco.mx")
+    descripcion_proyecto = st.text_input("Descripción del Proyecto")
+
+with c2:
+    fecha = st.date_input("Fecha", value=date.today())
+    telefono_cotizador = st.text_input("Teléfono Cotizador")
+    ubicacion = st.text_input("Ubicación del Servicio")
+
+
+# ══════════════════════════════════════════
+# SECCIÓN 2 — DATOS DEL CLIENTE
+# ══════════════════════════════════════════
+st.header("2. Datos del Cliente")
+
+cc1, cc2 = st.columns(2)
+
+with cc1:
+    nombre_cliente = st.text_input("Nombre cliente")
+    institucion_cliente = st.text_input("Institución")
+    direccion_cliente = st.text_input("Dirección cliente")
+
+with cc2:
+    telefono_cliente = st.text_input("Teléfono cliente")
+    email_cliente = st.text_input("E-mail cliente")
+
+# Folio automático
+cliente_base = institucion_cliente or nombre_cliente
+folio = generar_folio(nombre_cotizador, fecha, cliente_base, descripcion_proyecto)
+folio_placeholder.success(f"**Folio:** {folio}")
+
+
+# ══════════════════════════════════════════
+# SECCIÓN 3 — CAPTURA DE CONCEPTOS
+# ══════════════════════════════════════════
+st.header("3. Captura de Conceptos")
+
+usar_preciario = st.toggle(
+    "📋 Habilitar Preciario Sodexo / BESCO",
+    value=st.session_state.usar_preciario,
+    key="toggle_preciario"
+)
+st.session_state.usar_preciario = usar_preciario
+
+# Variables del concepto con valores por defecto
+concepto_val = ""
+item_final = ""
+unidad_val = OPCIONES_UNIDAD[0]
+costo_val = 0.0
+tipo_servicio = TIPOS_SERVICIO[0]
+region_seleccionada = None
+
+if usar_preciario:
+    try:
+        df_preciario = cargar_preciario()
+
+        if df_preciario.empty:
+            st.warning("⚠️ El preciario está vacío o no se encontraron registros.")
+            raise ValueError("preciario_vacio")
+
+        # Detectar columnas de región disponibles en el sheet
+        columnas_region = [
+            c for c in df_preciario.columns
+            if c not in ("item", "Concepto", "Unidad")
+        ]
+        regiones_disponibles = (
+            [r for r in REGIONES_PRECIARIO if r in columnas_region]
+            or columnas_region
+        )
+
+        col_sel1, col_sel2, col_sel3 = st.columns([1.2, 0.9, 1.9])
+
+        with col_sel1:
+            tipo_servicio = st.selectbox("Tipo de Servicio", TIPOS_SERVICIO)
+            if regiones_disponibles:
+                region_seleccionada = st.selectbox("📍 Región de Tarifas", regiones_disponibles)
+            else:
+                st.info("No se detectaron columnas de región en el preciario.")
+
+        with col_sel3:
+            df_preciario["_buscador"] = (
+                df_preciario["item"].astype(str) + " - " +
+                df_preciario["Concepto"].astype(str)
+            )
+            lista_opciones = ["-- Selecciona un concepto --"] + (
+                df_preciario["_buscador"].dropna().astype(str).unique().tolist()
+            )
+            concepto_sel = st.selectbox(
+                "🔍 Buscador (escribe letra o ítem)", lista_opciones
+            )
+
+        if concepto_sel != "-- Selecciona un concepto --":
+            fila_p = df_preciario[df_preciario["_buscador"] == concepto_sel].iloc[0]
+            concepto_val = str(fila_p.get("Concepto", "")).strip()
+            item_final = str(fila_p.get("item", "")).strip()
+            unidad_val = str(fila_p.get("Unidad", OPCIONES_UNIDAD[0])).strip()
+
+            if region_seleccionada:
+                raw = (
+                    str(fila_p.get(region_seleccionada, "0"))
+                    .replace("$", "").replace(",", "").strip()
+                )
+                try:
+                    costo_val = float(raw)
+                except ValueError:
+                    costo_val = 0.0
+
+        with col_sel2:
+            item_final = st.text_input("📦 Item", value=item_final)
+
+    except Exception as e:
+        if "preciario_vacio" not in str(e):
+            st.error(f"No se pudo cargar el preciario: {e}")
+            st.warning("Usando captura manual como respaldo.")
+        usar_preciario = False
+
+if not usar_preciario:
+    cs1, cs2 = st.columns([1, 2])
+    with cs1:
+        tipo_servicio = st.selectbox("Tipo de Servicio", TIPOS_SERVICIO)
+    with cs2:
+        concepto_val = st.text_input("Concepto o descripción detallada")
+
+# ── Campos comunes: cantidad, unidad, costo, utilidad ──
+st.markdown("---")
+cx1, cx2, cx3, cx4 = st.columns([1, 1.5, 1.2, 1.2])
+
+cantidad = cx1.number_input(
+    "Cantidad", min_value=0.01, value=1.00, step=0.50, format="%.2f"
 )
 
+opciones_unidad_dinamicas = list(OPCIONES_UNIDAD)
+if unidad_val and unidad_val not in opciones_unidad_dinamicas:
+    opciones_unidad_dinamicas.append(unidad_val)
+idx_unidad = (
+    opciones_unidad_dinamicas.index(unidad_val)
+    if unidad_val in opciones_unidad_dinamicas
+    else 0
+)
+tipo_unidad = cx2.selectbox("Unidad", opciones_unidad_dinamicas, index=idx_unidad)
 
-# ==========================================
-# SECCIÓN 1 — IDENTIFICACIÓN
-# ==========================================
-st.markdown("## 1. Identificación del cliente y persona que cotiza")
+costo_unitario = cx3.number_input(
+    "Costo U. ($)", min_value=0.0, value=float(costo_val), step=0.01, format="%.2f"
+)
 
-with st.container(border=True):
-    st.markdown("### Datos generales de la cotización")
+utilidad_default = 0.0 if usar_preciario else 23.50
+margen_utilidad = cx4.number_input(
+    "Utilidad (%)", min_value=0.0, value=utilidad_default, step=0.50, format="%.2f"
+)
 
-    col_g1, col_g2 = st.columns(2)
-    with col_g1:
-        folio = st.text_input(
-            "Folio de cotización",
-            value=st.session_state.datos_cotizacion["folio"],
-            placeholder="Ej. COT-2026-001"
-        )
-    with col_g2:
-        fecha = st.date_input(
-            "Fecha de cotización",
-            value=st.session_state.datos_cotizacion["fecha"]
-        )
+precio_venta_u = calcular_precio_venta(costo_unitario, margen_utilidad)
+importe_linea = round(precio_venta_u * cantidad, 2)
 
-    st.markdown("### Identificación del cliente")
+col_prev1, col_prev2 = st.columns(2)
+col_prev1.metric("Precio venta unitario", formatear_moneda(precio_venta_u))
+col_prev2.metric("Importe de esta línea", formatear_moneda(importe_linea))
 
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        cliente_nombre = st.text_input(
-            "Nombre del cliente",
-            value=st.session_state.datos_cotizacion["cliente_nombre"],
-            placeholder="Nombre de la persona o cliente"
-        )
-    with col_c2:
-        cliente_empresa = st.text_input(
-            "Empresa / Razón social",
-            value=st.session_state.datos_cotizacion["cliente_empresa"],
-            placeholder="Nombre de la empresa"
-        )
+st.markdown("")
+if st.button("➕ Agregar línea a cotización", type="primary", use_container_width=True):
+    errores = []
+    if not concepto_val.strip() or concepto_val == "-- Selecciona un concepto --":
+        errores.append("Ingresa o selecciona un concepto válido.")
+    if cantidad <= 0:
+        errores.append("La cantidad debe ser mayor a cero.")
 
-    col_c3, col_c4, col_c5 = st.columns(3)
-    with col_c3:
-        cliente_contacto = st.text_input(
-            "Persona de contacto",
-            value=st.session_state.datos_cotizacion["cliente_contacto"],
-            placeholder="Nombre del contacto"
-        )
-    with col_c4:
-        cliente_telefono = st.text_input(
-            "Teléfono del cliente",
-            value=st.session_state.datos_cotizacion["cliente_telefono"],
-            placeholder="Ej. 55 1234 5678"
-        )
-    with col_c5:
-        cliente_correo = st.text_input(
-            "Correo del cliente",
-            value=st.session_state.datos_cotizacion["cliente_correo"],
-            placeholder="correo@empresa.com"
-        )
-
-    st.markdown("### Persona que cotiza")
-
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        cotiza_nombre = st.text_input(
-            "Nombre de quien cotiza",
-            value=st.session_state.datos_cotizacion["cotiza_nombre"],
-            placeholder="Nombre del ejecutivo o responsable"
-        )
-    with col_p2:
-        cotiza_puesto = st.text_input(
-            "Puesto",
-            value=st.session_state.datos_cotizacion["cotiza_puesto"],
-            placeholder="Ej. Gerente de Servicio"
-        )
-
-    col_p3, col_p4 = st.columns(2)
-    with col_p3:
-        cotiza_telefono = st.text_input(
-            "Teléfono de quien cotiza",
-            value=st.session_state.datos_cotizacion["cotiza_telefono"],
-            placeholder="Ej. 55 9876 5432"
-        )
-    with col_p4:
-        cotiza_correo = st.text_input(
-            "Correo de quien cotiza",
-            value=st.session_state.datos_cotizacion["cotiza_correo"],
-            placeholder="correo@empresa.com"
-        )
-
-    if st.button("💾 Guardar datos de identificación", use_container_width=True):
-        st.session_state.datos_cotizacion = {
-            "folio": folio,
-            "fecha": fecha,
-            "cliente_nombre": cliente_nombre,
-            "cliente_empresa": cliente_empresa,
-            "cliente_contacto": cliente_contacto,
-            "cliente_telefono": cliente_telefono,
-            "cliente_correo": cliente_correo,
-            "cotiza_nombre": cotiza_nombre,
-            "cotiza_puesto": cotiza_puesto,
-            "cotiza_telefono": cotiza_telefono,
-            "cotiza_correo": cotiza_correo,
-        }
-        st.success("Datos de identificación guardados correctamente.")
-
-
-# ==========================================
-# SECCIÓN 2 — CONCEPTO A COTIZAR
-# ==========================================
-st.markdown("## 2. Concepto a cotizar")
-
-with st.container(border=True):
-    st.markdown("### Modo de captura del concepto")
-
-    col_m1, col_m2 = st.columns([1, 3])
-    with col_m1:
-        label_btn = (
-            "📘 Deshabilitar Preciario BESCO"
-            if st.session_state.usar_preciario_besco
-            else "📘 Habilitar Preciario BESCO"
-        )
-        st.button(label_btn, on_click=toggle_preciario_besco, use_container_width=True)
-    with col_m2:
-        if st.session_state.usar_preciario_besco:
-            st.success("Modo activo: Preciario BESCO")
-        else:
-            st.info("Modo activo: Captura manual")
-
-    st.markdown("---")
-
-    # Variables con valores por defecto
-    origen_concepto = "Captura manual"
-    clave_preciario = ""
-    tipo_servicio = ""
-    descripcion = ""
-    unidad = ""
-    precio_unitario = 0.00
-
-    if st.session_state.usar_preciario_besco:
-        origen_concepto = "Preciario BESCO"
-        try:
-            clave_preciario, tipo_servicio, descripcion, unidad, precio_unitario = (
-                ui_captura_desde_preciario()
-            )
-        except Exception as e:
-            st.error(f"No se pudo cargar el Preciario BESCO: {e}")
-            st.warning(
-                "Mientras se corrige la configuración, puedes usar la captura manual."
-            )
-            origen_concepto = "Captura manual"
-            clave_preciario, tipo_servicio, descripcion, unidad, precio_unitario = (
-                ui_captura_manual()
-            )
+    if errores:
+        for e in errores:
+            st.error(f"❌ {e}")
     else:
-        clave_preciario, tipo_servicio, descripcion, unidad, precio_unitario = (
-            ui_captura_manual()
+        concepto_completo = (
+            f"{item_final} - {concepto_val}" if item_final else concepto_val
         )
+        st.session_state.conceptos.append({
+            "Tipo": tipo_servicio,
+            "Concepto": concepto_completo,
+            "Cant.": round(float(cantidad), 2),
+            "Unidad": tipo_unidad,
+            "Costo U.": round(float(costo_unitario), 2),
+            "Precio Venta": round(float(precio_venta_u), 2),
+            "Importe": round(float(importe_linea), 2),
+        })
+        st.rerun()
 
-    st.markdown("### Cantidad y cálculo de utilidad")
 
-    col_cant, col_util = st.columns(2)
-    with col_cant:
-        cantidad = st.number_input(
-            "Cantidad",
-            min_value=0.00,
-            value=1.00,
-            step=1.00,
-            format="%.2f"
-        )
-    with col_util:
-        utilidad_pct = st.number_input(
-            "Utilidad (%)",
-            min_value=0.00,
-            value=23.55,
-            step=0.50,
-            format="%.2f",
-            help="Porcentaje de utilidad sobre el precio unitario."
-        )
+# ══════════════════════════════════════════
+# SECCIÓN 4 — RESUMEN Y ACCIONES
+# ══════════════════════════════════════════
+if st.session_state.conceptos:
+    st.header("4. Resumen de Cotización")
 
-    utilidad_monto_u = calcular_utilidad_monto(precio_unitario, utilidad_pct)
-    precio_venta_u = calcular_precio_venta(precio_unitario, utilidad_pct)
-    subtotal = round(precio_venta_u * cantidad, 2)
+    df_editado = st.data_editor(
+        pd.DataFrame(st.session_state.conceptos),
+        num_rows="dynamic",
+        use_container_width=True,
+        key="editor_conceptos"
+    )
 
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Utilidad / u", formatear_moneda(utilidad_monto_u))
-    col_m2.metric("Precio venta / u", formatear_moneda(precio_venta_u))
-    col_m3.metric("Cantidad", f"{cantidad:,.2f}")
-    col_m4.metric("Subtotal", formatear_moneda(subtotal))
+    # Recalcular importe tras edición manual en la tabla
+    df_editado["Importe"] = (
+        df_editado["Cant."].astype(float) * df_editado["Precio Venta"].astype(float)
+    ).round(2)
 
+    subtotal = float(df_editado["Importe"].sum())
+    iva_monto = round(subtotal * IVA, 2)
+    total = round(subtotal + iva_monto, 2)
+
+    col_t1, col_t2, col_t3 = st.columns(3)
+    col_t1.metric("Subtotal", formatear_moneda(subtotal))
+    col_t2.metric(f"IVA {int(IVA*100)}%", formatear_moneda(iva_monto))
+    col_t3.metric("TOTAL", formatear_moneda(total))
+
+    # ── Condiciones comerciales ──
+    st.header("5. Condiciones Comerciales")
+
+    co1, co2 = st.columns(2)
+    with co1:
+        tipo_moneda = st.selectbox("Moneda", ["Pesos Mexicanos", "Dólares de Estados Unidos"])
+        dias_ejecucion = st.number_input("Días de ejecución", min_value=1, value=15)
+        tiempo_entrega = f"{int(dias_ejecucion)} días hábiles"
+        condiciones_pago = st.selectbox("Forma de pago", OPCIONES_PAGO)
+    with co2:
+        dias_vigencia = st.number_input("Vigencia (días)", min_value=1, value=15)
+        vigencia = f"{int(dias_vigencia)} días hábiles"
+        garantia = st.text_input("Garantía", value="30 días sobre mano de obra")
+
+    # ── Mensajes de estado ──
+    if st.session_state.mensaje_exito:
+        st.success(st.session_state.mensaje_exito)
+        st.session_state.mensaje_exito = None
+    if st.session_state.mensaje_error:
+        st.warning(st.session_state.mensaje_error)
+        st.session_state.mensaje_error = None
+
+    # ── Diccionario de metadatos ──
+    meta = {
+        "folio": folio,
+        "fecha": fecha,
+        "nombre_cliente": nombre_cliente,
+        "institucion_cliente": institucion_cliente,
+        "direccion_cliente": direccion_cliente,
+        "telefono_cliente": telefono_cliente,
+        "email_cliente": email_cliente,
+        "nombre_cotizador": nombre_cotizador,
+        "puesto_cotizador": puesto_cotizador,
+        "email_cotizador": email_cotizador,
+        "telefono_cotizador": telefono_cotizador,
+        "descripcion_proyecto": descripcion_proyecto,
+        "ubicacion": ubicacion,
+        "subtotal": subtotal,
+        "iva": iva_monto,
+        "total": total,
+        "tipo_moneda": tipo_moneda,
+        "tiempo_entrega": tiempo_entrega,
+        "condiciones_pago": condiciones_pago,
+        "vigencia": vigencia,
+        "garantia": garantia,
+    }
+
+    # ── Botones de acción ──
     st.markdown("---")
-
-    col_info1, col_info2, col_info3 = st.columns(3)
-    with col_info1:
-        st.info(f"**Origen:** {origen_concepto}")
-    with col_info2:
-        st.info(f"**Precio unitario:** {formatear_moneda(precio_unitario)}")
-    with col_info3:
-        st.info(f"**Utilidad aplicada:** {utilidad_pct:.2f}%")
-
-    if st.button("➕ Agregar concepto", use_container_width=True):
-        datos = st.session_state.datos_cotizacion
-        errores = []
-
-        if not str(descripcion).strip():
-            errores.append("La descripción del producto o servicio es obligatoria.")
-        if cantidad <= 0:
-            errores.append("La cantidad debe ser mayor a cero.")
-
-        if errores:
-            for e in errores:
-                st.warning(e)
-        else:
-            nuevo_concepto = {
-                "Folio": datos["folio"],
-                "Fecha": str(datos["fecha"]) if datos["fecha"] else "",
-                "Cliente": datos["cliente_nombre"],
-                "Empresa / Razón social": datos["cliente_empresa"],
-                "Contacto cliente": datos["cliente_contacto"],
-                "Teléfono cliente": datos["cliente_telefono"],
-                "Correo cliente": datos["cliente_correo"],
-                "Persona que cotiza": datos["cotiza_nombre"],
-                "Puesto": datos["cotiza_puesto"],
-                "Teléfono quien cotiza": datos["cotiza_telefono"],
-                "Correo quien cotiza": datos["cotiza_correo"],
-                "Origen concepto": origen_concepto,
-                "Clave preciario": clave_preciario,
-                "Tipo de servicio": tipo_servicio,
-                "Descripción": str(descripcion).strip(),
-                "Unidad": unidad,
-                "Cantidad": round(float(cantidad), 2),
-                "Precio unitario": round(float(precio_unitario), 2),
-                "Utilidad (%)": round(float(utilidad_pct), 2),
-                "Utilidad ($)": round(float(utilidad_monto_u), 2),
-                "Precio venta / u": round(float(precio_venta_u), 2),
-                "Subtotal": round(float(subtotal), 2),
-            }
-
-            st.session_state.conceptos_cotizacion.append(nuevo_concepto)
-            st.success("Concepto agregado correctamente.")
-
-
-# ==========================================
-# SECCIÓN 3 — RESUMEN DE IDENTIFICACIÓN
-# ==========================================
-st.markdown("## 3. Resumen de identificación")
-
-datos = st.session_state.datos_cotizacion
-
-with st.container(border=True):
-    col_r1, col_r2 = st.columns(2)
-
-    with col_r1:
-        st.markdown("### Cliente")
-        st.write(f"**Folio:** {datos['folio']}")
-        st.write(f"**Fecha:** {datos['fecha'] or ''}")
-        st.write(f"**Nombre:** {datos['cliente_nombre']}")
-        st.write(f"**Empresa / Razón social:** {datos['cliente_empresa']}")
-        st.write(f"**Persona de contacto:** {datos['cliente_contacto']}")
-        st.write(f"**Teléfono:** {datos['cliente_telefono']}")
-        st.write(f"**Correo:** {datos['cliente_correo']}")
-
-    with col_r2:
-        st.markdown("### Persona que cotiza")
-        st.write(f"**Nombre:** {datos['cotiza_nombre']}")
-        st.write(f"**Puesto:** {datos['cotiza_puesto']}")
-        st.write(f"**Teléfono:** {datos['cotiza_telefono']}")
-        st.write(f"**Correo:** {datos['cotiza_correo']}")
-
-
-# ==========================================
-# SECCIÓN 4 — CONCEPTOS CAPTURADOS
-# ==========================================
-st.markdown("## 4. Conceptos capturados")
-
-if st.session_state.conceptos_cotizacion:
-    df = pd.DataFrame(st.session_state.conceptos_cotizacion)
-
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    # Totales con IVA
-    total_precio_unitario = float(df["Precio unitario"].sum())
-    total_utilidad = float(df["Utilidad ($)"].sum())
-    subtotal_total = float(df["Subtotal"].sum())
-    iva_monto = round(subtotal_total * IVA_PORCENTAJE / 100, 2)
-    total_con_iva = round(subtotal_total + iva_monto, 2)
-
-    st.markdown("### Totales")
-
-    col_t1, col_t2, col_t3, col_t4, col_t5 = st.columns(5)
-    col_t1.metric("Suma precio unitario", formatear_moneda(total_precio_unitario))
-    col_t2.metric("Suma utilidad", formatear_moneda(total_utilidad))
-    col_t3.metric("Subtotal", formatear_moneda(subtotal_total))
-    col_t4.metric(f"IVA ({IVA_PORCENTAJE:.0f}%)", formatear_moneda(iva_monto))
-    col_t5.metric("Total con IVA", formatear_moneda(total_con_iva))
-
-    st.markdown("---")
-
     col_btn1, col_btn2, col_btn3 = st.columns(3)
 
     with col_btn1:
-        csv = df.to_csv(index=False).encode("utf-8-sig")
+        if FPDF_DISPONIBLE:
+            try:
+                bytes_pdf = generar_pdf(df_editado, meta, subtotal, iva_monto, total)
+                st.download_button(
+                    label="⚡ Guardar Historial y Descargar PDF",
+                    data=bytes_pdf,
+                    file_name=f"Cotizacion_{folio}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    on_click=guardar_historial,
+                    args=(df_editado, meta)
+                )
+            except Exception as e:
+                st.error(f"Error al generar el PDF: {e}")
+        else:
+            st.warning("Instala 'fpdf2' en requirements.txt para habilitar el PDF.")
+
+    with col_btn2:
+        csv = df_editado.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
-            label="📥 Descargar cotización CSV",
+            label="📥 Descargar CSV",
             data=csv,
-            file_name=f"cotizacion_{datos['folio'] or 'sin_folio'}.csv",
+            file_name=f"Cotizacion_{folio}.csv",
             mime="text/csv",
             use_container_width=True
         )
 
-    with col_btn2:
-        if st.button("🗑️ Eliminar último concepto", use_container_width=True):
-            st.session_state.conceptos_cotizacion.pop()
-            st.rerun()
-
     with col_btn3:
-        if st.button("♻️ Limpiar toda la cotización", use_container_width=True):
-            limpiar_cotizacion()
+        if st.button("♻️ Limpiar cotización", use_container_width=True):
+            limpiar_conceptos()
             st.rerun()
 
 else:
-    st.info("Aún no hay conceptos agregados a la cotización.")
+    st.info("Aún no hay conceptos en la cotización. Agrega al menos uno en la sección 3.")
 
 
-# ==========================================
-# APOYO TÉCNICO
-# ==========================================
-with st.expander("Ver fórmula utilizada para el precio de venta"):
-    st.write("**Precio venta = Precio unitario × (1 + Utilidad % / 100)**")
-    st.code(
-        "precio_venta = precio_unitario * (1 + utilidad_porcentaje / 100)",
-        language="python"
-    )
-    st.write("**Subtotal = Precio venta × Cantidad**")
-    st.code(
-        "subtotal = precio_venta * cantidad",
-        language="python"
-    )
-
-with st.expander("Diagnóstico de conexión con Preciario BESCO"):
+# ══════════════════════════════════════════
+# PANELES INFORMATIVOS
+# ══════════════════════════════════════════
+with st.expander("🔧 Diagnóstico de conexión con Google Sheets"):
     url_det = valor_secreto(*CLAVES_URL_PRECIARIO, default="")
     key_det = valor_secreto(*CLAVES_KEY_PRECIARIO, default="")
     ws_det = valor_secreto(*CLAVES_WORKSHEET_PRECIARIO, default="")
+    hist_det = valor_secreto(*CLAVES_HISTORIAL_WORKSHEET, default="")
 
     st.write(f"**gspread disponible:** {'Sí' if GSPREAD_DISPONIBLE else 'No — instala gspread y google-auth'}")
+    st.write(f"**fpdf2 disponible:** {'Sí' if FPDF_DISPONIBLE else 'No — instala fpdf2'}")
     st.write(f"**URL detectada:** {'Sí' if url_det else 'No'}")
     st.write(f"**KEY detectada:** {'Sí' if key_det else 'No'}")
-    st.write(f"**Worksheet configurada:** {ws_det or 'Primera hoja (por defecto)'}")
+    st.write(f"**Worksheet preciario:** {ws_det or 'Primera hoja (por defecto)'}")
+    st.write(f"**Worksheet historial:** {hist_det or 'Historial (por defecto)'}")
 
-    if st.button("🔄 Probar carga del Preciario BESCO", use_container_width=True):
+    if st.button("🔄 Probar carga del Preciario", use_container_width=True):
         try:
-            obtener_preciario_besco.clear()
-            df_test = obtener_preciario_besco()
-            st.success(f"Preciario cargado correctamente. Registros encontrados: {len(df_test)}")
-            st.dataframe(df_test.head(20), use_container_width=True, hide_index=True)
+            cargar_preciario.clear()
+            df_test = cargar_preciario()
+            st.success(f"Preciario cargado: {len(df_test)} registros.")
+            st.dataframe(df_test.head(10), use_container_width=True, hide_index=True)
         except Exception as e:
-            st.error(f"Error al cargar el Preciario: {e}")
+            st.error(f"Error: {e}")
+
+with st.expander("📐 Fórmulas utilizadas"):
+    st.write("**Precio venta unitario** = Costo U. × (1 + Utilidad % / 100)")
+    st.write("**Importe** = Precio venta unitario × Cantidad")
+    st.write("**IVA** = Subtotal × 16%")
+    st.write("**Total** = Subtotal + IVA")
