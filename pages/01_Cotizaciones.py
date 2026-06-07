@@ -17,7 +17,8 @@ st.title("📄 Cotizaciones - Sistema Besco")
 def cargar_preciario():
     try:
         client = obtener_gspread_client()
-        sheet = client.open("PRECIARIO_SODEXO").sheet1
+        # CORRECCIÓN: El nombre ahora coincide exactamente con tu Google Sheet
+        sheet = client.open("Preciario Besco").sheet1
         return pd.DataFrame(sheet.get_all_records())
     except Exception as e:
         st.error(f"Error de conexión con Google Sheets: {e}")
