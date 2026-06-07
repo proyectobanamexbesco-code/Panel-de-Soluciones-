@@ -33,28 +33,34 @@ if not df_precios.empty:
     columnas_pu = [col for col in df_precios.columns if "PU " in col] or ["PU"]
         
     with st.form("cotizador_form"):
+        # SECCIÓN 1
         st.markdown("### 1. Datos de Identificación del Cliente")
         col1, col2 = st.columns(2)
         with col1:
-            cliente = st.text_input("CLIENTE:", placeholder="Ej. SMARTFIT")
-            inmueble = st.text_input("INMUEBLE:", placeholder="Ej. EDIFICIO CORPORATIVO")
+            cliente = st.text_input("CLIENTE:")
+            inmueble = st.text_input("INMUEBLE:")
+            tel_cliente = st.text_input("TELÉFONO CLIENTE:")
         with col2:
-            reporte = st.text_input("# DE TICKET / REPORTE CLIENTE:", placeholder="Ej. OC-0002")
-            atencion = st.text_input("ATENCIÓN:", value="A QUIEN CORRESPONDA")
-            titulo_cotizacion = st.text_input("TIPO DE TRABAJO / TÍTULO:", placeholder="Ej. REPARACIÓN DE FUGA")
+            email_cliente = st.text_input("EMAIL CLIENTE:")
+            reporte = st.text_input("# DE TICKET / REPORTE:")
+            titulo_cotizacion = st.text_input("TIPO DE TRABAJO / TÍTULO:")
 
+        # SECCIÓN 2
         st.markdown("### 2. Datos del Cotizador")
         col3, col4 = st.columns(2)
         with col3:
-            cotizador_nombre = st.text_input("ELABORÓ / COTIZÓ:", value="")
+            cotizador_nombre = st.text_input("ELABORÓ / COTIZÓ:")
             cotizador_puesto = st.selectbox("PUESTO:", ["Gerente Regional", "Gerente de Servicio", "Supervisor", "Jefe de Oficina", "Cotizador"])
+            tel_cotizador = st.text_input("TELÉFONO CONTACTO BESCO:")
         with col4:
+            email_cotizador = st.text_input("EMAIL CONTACTO BESCO:")
             fecha_cotizacion = st.date_input("FECHA DE COTIZACIÓN:", date.today())
             fecha_solicitud = st.date_input("FECHA SOLICITUD DE COTIZACIÓN:", date.today())
 
+        # SECCIÓN 3
         st.markdown("### 3. Conceptos a Cotizar")
         region_precio = st.selectbox("Región de Precios (PU):", columnas_pu)
-        conceptos_seleccionados = st.multiselect("Busca y selecciona los servicios:", df_precios[columna_conceptos].tolist())
+        conceptos_seleccionados = st.multiselect("Selecciona los servicios:", df_precios[columna_conceptos].tolist())
         
         datos_para_pdf = []
         if conceptos_seleccionados:
@@ -74,7 +80,6 @@ if not df_precios.empty:
             
             class PDF(FPDF):
                 def header(self):
-                    # Inserción del logo
                     if os.path.exists("logo besco 2026.jpeg"):
                         self.image("logo besco 2026.jpeg", 10, 8, 30)
                     self.set_font('Arial', 'B', 12)
@@ -83,11 +88,12 @@ if not df_precios.empty:
 
             pdf = PDF()
             pdf.add_page()
-            # Datos al PDF
             pdf.set_font('Arial', '', 9)
             pdf.cell(0, 5, f"Fecha Cotizacion: {fecha_cotizacion.strftime('%d/%m/%Y')}", ln=True)
             pdf.cell(0, 5, f"Fecha Solicitud: {fecha_solicitud.strftime('%d/%m/%Y')}", ln=True)
-            # ... (continúa con tu lógica de tabla y footer)
+            pdf.cell(0, 5, f"Contacto Cliente: {tel_cliente} | {email_cliente}", ln=True)
+            pdf.cell(0, 5, f"Contacto Besco: {tel_cotizador} | {email_cotizador}", ln=True)
+            # ... (Continúa con tu lógica de tabla y footer)
             
             pdf_bytes = pdf.output(dest='S').encode('latin-1')
             st.download_button("📥 Descargar PDF", pdf_bytes, f"{folio}.pdf", "application/pdf")
