@@ -10,18 +10,25 @@ st.set_page_config(
 st.title("🏗️ Portal de Soluciones Operativas")
 st.markdown("---")
 
-st.markdown("### Bienvenido al sistema central")
-st.markdown("Utiliza el **menú lateral izquierdo** para navegar entre las diferentes herramientas disponibles:")
+st.markdown("### Selecciona una herramienta para comenzar:")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.info("**📄 Cotizaciones:** Cálculo de presupuestos basados en preciario.")
-    st.info("**📸 Reporte General:** Generación de evidencia fotográfica.")
+    st.page_link("pages/01_Cotizaciones.py", label="Ir al Cotizador", icon="📄")
+    st.info("Cálculo de presupuestos basados en preciario.")
+    st.write("") # Espaciador
+    
+    st.page_link("pages/02_Reporte_General.py", label="Ir a Reporte Fotográfico", icon="📸")
+    st.info("Generación de evidencia fotográfica general.")
 
 with col2:
-    st.success("**📑 Módulo Nestlé:** Levantamiento de equipos y análisis IA.")
-    st.warning("**🚀 Próximas Apps:** Espacio reservado para integraciones futuras.")
+    st.page_link("pages/03_Nestle.py", label="Ir al Módulo Nestlé", icon="📑")
+    st.success("Levantamiento de equipos y análisis de datos.")
+    st.write("") # Espaciador
+    
+    st.page_link("pages/04_Proximas_Apps.py", label="Ir a Próximas Apps", icon="🚀")
+    st.warning("Espacio reservado para integraciones futuras.")
 
 st.divider()
-st.caption("👈 Expande la barra lateral si estás en un dispositivo móvil para acceder a los módulos.")
+st.caption("Sistema Operativo - Grupo Besco")
