@@ -5,7 +5,7 @@ import os
 from fpdf import FPDF
 from datetime import date
 
-# Esta línea asegura que la app encuentre tu archivo utils.py en la carpeta principal
+# Asegura que la app encuentre tu archivo utils.py en la carpeta principal
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils import obtener_gspread_client
 
@@ -14,12 +14,16 @@ st.set_page_config(page_title="Cotizaciones | Besco", page_icon="📄")
 
 st.title("📄 Cotizaciones - Sistema Besco")
 
+# st.cache_data hace que la app sea mucho más rápida al no descargar el Excel en cada clic
+@st.cache_data(ttl=600)
 def cargar_preciario():
     try:
         client = obtener_gspread_client()
-        # CORRECCIÓN: El nombre ahora coincide exactamente con tu Google Sheet
         sheet = client.open("Preciario Besco").sheet1
-        return pd.DataFrame(sheet.get_all_records())
+        df = pd.DataFrame(sheet.get_all_records())
+        # Normalizamos los títulos para evitar errores por espacios o minúsculas
+        df.columns = [str(c).strip().upper() for c in df.columns]
+        return df
     except Exception as e:
         st.error(f"Error de conexión con Google Sheets: {e}")
         return pd.DataFrame()
@@ -29,7 +33,9 @@ df_precios = cargar_preciario()
 if not df_precios.empty:
     with st.form("cotizador_form"):
         cliente = st.text_input("Nombre del Cliente")
-        conceptos = st.multiselect("Selecciona los conceptos del preciario", df_precios["DESCRIPCION"].tolist())
+        
+        # Apuntamos exactamente a la columna que mostraste en tu captura
+        conceptos = st.multiselect("Selecciona los conceptos del preciario", df_precios["CONCEPTO"].tolist())
         
         # Botón de envío del formulario
         submit = st.form_submit_button("Generar PDF de Cotización")
@@ -53,7 +59,9 @@ if not df_precios.empty:
                 
                 pdf.set_font("Arial", size=12)
                 for c in conceptos:
-                    pdf.cell(0, 10, f"- {c}", ln=True)
+                    # multi_cell permite que los textos largos se ajusten al ancho de la hoja
+                    pdf.multi_cell(0, 8, f"- {c}")
+                    pdf.ln(2)
                 
                 # Preparar descarga del PDF
                 pdf_bytes = pdf.output(dest='S').encode('latin-1')
