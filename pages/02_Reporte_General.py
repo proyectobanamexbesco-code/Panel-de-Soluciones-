@@ -8,6 +8,8 @@ import smtplib
 from email.message import EmailMessage
 import io
 import uuid
+import tempfile
+import contextlib
 from pypdf import PdfWriter
 
 # --- CONFIGURACIÓN DE RUTAS Y LOGOTIPO ---
@@ -34,100 +36,234 @@ st.markdown("""
 
 # --- FUNCIÓN DE LIMPIEZA DE CARACTERES ESPECIALES ---
 def limpiar_texto(texto):
-    if not isinstance(texto, str): 
+    if not isinstance(texto, str):
         texto = str(texto)
     reemplazos = {
-        '•': '-', '“': '"', '”': '"', '‘': "'", '’': "'", 
-        '–': '-', '—': '-', '\u200b': '', '\r': '', '°': ' grados'
+        '•': '-', '\u201c': '"', '\u201d': '"', '\u2018': "'", '\u2019': "'",
+        '\u2013': '-', '\u2014': '-', '\u200b': '', '\r': '', '°': ' grados'
     }
     for k, v in reemplazos.items():
         texto = texto.replace(k, v)
     return texto.encode('latin-1', 'replace').decode('latin-1')
 
-# --- CLASE PDF CON LOGO AUMENTADO AL 50% ---
+# --- GESTOR DE ARCHIVOS TEMPORALES ---
+@contextlib.contextmanager
+def archivo_temporal(suffix=".jpg"):
+    """Crea un archivo temporal y garantiza su eliminación al salir del bloque."""
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp.close()
+    try:
+        yield tmp.name
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(tmp.name)
+
+def imagen_a_temp(file_obj):
+    """Convierte un archivo de imagen a JPEG temporal. Retorna context manager."""
+    return archivo_temporal(suffix=".jpg")
+
+# --- CLASE PDF PROFESIONAL ---
 class BESCO_PDF(FPDF):
     def __init__(self):
         super().__init__()
         self.section_count = 1
-        self.set_auto_page_break(auto=True, margin=20)
+        self.set_auto_page_break(auto=True, margin=25)
+        self.set_margins(left=12, top=12, right=12)
 
     def header(self):
+        # Logo
         if LOGO_PATH and os.path.exists(LOGO_PATH):
             try:
-                img_logo = Image.open(LOGO_PATH).convert("RGB")
-                temp_logo = f"temp_logo_{uuid.uuid4().hex}.jpg"
-                img_logo.save(temp_logo, format="JPEG")
-                orig_w, orig_h = img_logo.size
-                final_h = 38  # Dimensionado un 50% más grande que el estándar
-                escala = final_h / orig_h
-                final_w = orig_w * escala
-                self.image(temp_logo, x=10, y=8, w=final_w, h=final_h)
-            except: 
+                with archivo_temporal(suffix=".jpg") as tmp_logo:
+                    img_logo = Image.open(LOGO_PATH).convert("RGB")
+                    orig_w, orig_h = img_logo.size
+                    final_h = 22
+                    final_w = orig_w * (final_h / orig_h)
+                    img_logo.save(tmp_logo, format="JPEG", quality=95)
+                    self.image(tmp_logo, x=12, y=8, w=final_w, h=final_h)
+            except Exception:
                 pass
-        self.set_font('Arial', 'B', 12)
+
+        # Título derecho
+        self.set_font('Arial', 'B', 11)
         self.set_text_color(30, 58, 95)
-        self.set_xy(100, 15)
-        self.cell(0, 10, limpiar_texto('REPORTE DE SERVICIO TÉCNICO - BESCO'), 0, 1, 'R')
-        self.set_font('Arial', '', 9)
-        self.set_x(100)
-        self.cell(0, 5, limpiar_texto(f"Emisión del Reporte: {datetime.now().strftime('%d/%m/%Y %H:%M')}"), 0, 1, 'R')
-        self.ln(15)
+        self.set_xy(0, 10)
+        self.cell(self.w - 12, 6, limpiar_texto('REPORTE DE SERVICIO TÉCNICO'), 0, 1, 'R')
+
+        self.set_font('Arial', '', 8)
+        self.set_text_color(120, 120, 120)
+        self.set_x(0)
+        self.cell(self.w - 12, 5, limpiar_texto(f"Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}"), 0, 1, 'R')
+
+        # Línea separadora
+        self.set_draw_color(226, 24, 54)
+        self.set_line_width(0.8)
+        self.line(12, 33, self.w - 12, 33)
+        self.set_line_width(0.2)
+        self.set_draw_color(0, 0, 0)
+        self.ln(28)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_draw_color(200, 200, 200)
+        self.line(12, self.get_y(), self.w - 12, self.get_y())
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(150, 150, 150)
+        self.cell(0, 8, limpiar_texto(f'Página {self.page_no()} | Documento confidencial BESCO'), 0, 0, 'C')
 
     def add_custom_section(self, title):
-        if self.get_y() > 240: 
+        if self.get_y() > 245:
             self.add_page()
+        # Barra de sección con acento rojo
         self.set_fill_color(30, 58, 95)
-        self.set_font('Arial', 'B', 11)
+        self.set_font('Arial', 'B', 10)
         self.set_text_color(255, 255, 255)
-        self.cell(0, 8, limpiar_texto(f"{self.section_count}. {title.upper()}"), 0, 1, 'L', fill=True)
+        self.cell(4, 8, '', 0, 0, 'L', fill=True)
+        self.set_fill_color(226, 24, 54)
+        self.cell(2, 8, '', 0, 0, 'L', fill=True)
+        self.set_fill_color(30, 58, 95)
+        self.cell(self.w - 30, 8, limpiar_texto(f"  {self.section_count}. {title.upper()}"), 0, 1, 'L', fill=True)
         self.section_count += 1
-        self.ln(2)
+        self.ln(3)
+        self.set_text_color(0, 0, 0)
+
+    def tabla_info(self, datos):
+        """Renderiza una tabla de dos columnas (etiqueta | valor) con estilo limpio."""
+        self.set_font('Arial', '', 9)
+        col_label = 50
+        col_valor = self.w - 12 - 12 - col_label
+
+        for etiqueta, valor in datos:
+            y_antes = self.get_y()
+            # Medir altura necesaria para el valor (multi_cell)
+            # Usamos get_string_width para determinar si necesitamos salto
+            self.set_font('Arial', 'B', 9)
+            self.set_fill_color(240, 243, 248)
+            self.cell(col_label, 7, limpiar_texto(etiqueta), 1, 0, 'L', fill=True)
+            self.set_font('Arial', '', 9)
+            self.set_fill_color(255, 255, 255)
+            self.cell(col_valor, 7, limpiar_texto(str(valor)), 1, 1, 'L', fill=True)
+        self.ln(3)
+
+    def tabla_mediciones(self, meds):
+        """Tabla horizontal para mediciones técnicas (A/C, etc.)."""
+        if not meds:
+            return
+        self.set_font('Arial', 'B', 9)
+        self.set_fill_color(30, 58, 95)
+        self.set_text_color(255, 255, 255)
+        ancho = (self.w - 24) / len(meds)
+        for k in meds:
+            self.cell(ancho, 7, limpiar_texto(k), 1, 0, 'C', fill=True)
+        self.ln()
+        self.set_font('Arial', '', 9)
+        self.set_text_color(0, 0, 0)
+        self.set_fill_color(255, 255, 255)
+        for v in meds.values():
+            self.cell(ancho, 7, limpiar_texto(str(v) if v else '-'), 1, 0, 'C')
+        self.ln(5)
+
+    def bloque_texto(self, etiqueta, contenido, color_fondo=(248, 248, 252)):
+        """Bloque de texto largo con etiqueta y fondo sutil."""
+        if not contenido:
+            return
+        self.set_font('Arial', 'B', 9)
+        self.set_fill_color(30, 58, 95)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 6, limpiar_texto(f"  {etiqueta}"), 0, 1, 'L', fill=True)
+        self.set_font('Arial', '', 9)
+        self.set_text_color(40, 40, 40)
+        self.set_fill_color(*color_fondo)
+        self.multi_cell(0, 5, limpiar_texto(contenido), border=1, fill=True)
+        self.ln(3)
         self.set_text_color(0, 0, 0)
 
     def photo_grid(self, title, photos, prefix="img"):
-        if not photos: 
+        """Grilla de fotos 2 columnas con pie de foto y relación de aspecto correcta."""
+        if not photos:
             return
-        if self.get_y() > 240:
+        if self.get_y() > 230:
             self.add_page()
-        self.add_custom_section(title)
-        ancho_foto, alto_foto, espacio_v = 90, 65, 72
-        
+
+        self.set_font('Arial', 'BI', 9)
+        self.set_text_color(30, 58, 95)
+        self.cell(0, 6, limpiar_texto(f"  Fotografías — {title}"), 0, 1, 'L')
+        self.set_text_color(0, 0, 0)
+
+        MAX_W = 89
+        MAX_H = 66
+        ESPACIO_H = 72   # alto de celda por fila (foto + pie)
+        MARGEN_X = 12
+
         for i, foto in enumerate(photos):
-            foto.seek(0)
-            img = Image.open(foto).convert("RGB")
-            temp_p = f"temp_{prefix}_{uuid.uuid4().hex}.jpg"
-            img.save(temp_p, format="JPEG")
-            col = i % 2
-            
-            if col == 0 and (self.get_y() + alto_foto > 265):
-                self.add_page()
-                self.set_font('Arial', 'I', 9)
+            try:
+                foto.seek(0)
+                img = Image.open(foto).convert("RGB")
+
+                # Calcular dimensiones respetando aspecto
+                img_w, img_h = img.size
+                escala = min(MAX_W / img_w, MAX_H / img_h)
+                final_w = img_w * escala
+                final_h = img_h * escala
+
+                col = i % 2
+                if col == 0 and i > 0 and (self.get_y() + ESPACIO_H > 270):
+                    self.add_page()
+
+                with archivo_temporal(suffix=".jpg") as tmp_img:
+                    img.save(tmp_img, format="JPEG", quality=90)
+                    y_act = self.get_y()
+                    x_pos = MARGEN_X + col * 95 + (MAX_W - final_w) / 2
+                    self.image(tmp_img, x=x_pos, y=y_act, w=final_w, h=final_h)
+
+                # Pie de foto
+                self.set_xy(MARGEN_X + col * 95, y_act + MAX_H + 1)
+                self.set_font('Arial', 'I', 7)
                 self.set_text_color(100, 100, 100)
-                self.cell(0, 6, limpiar_texto(f"(Continuación) {title}"), 0, 1, 'L')
+                self.cell(MAX_W, 4, limpiar_texto(f"Foto {i+1} — {title}"), 0, 0, 'C')
                 self.set_text_color(0, 0, 0)
-                self.ln(2)
-                
-            y_act = self.get_y()
-            self.image(temp_p, x=10 + (col * 95), y=y_act, w=ancho_foto, h=alto_foto)
-            if col == 1 or i == len(photos) - 1:
-                self.set_y(y_act + espacio_v)
-        self.ln(2)
+
+                if col == 1 or i == len(photos) - 1:
+                    self.set_y(y_act + ESPACIO_H)
+
+            except Exception as e:
+                self.set_font('Arial', 'I', 8)
+                self.cell(0, 6, limpiar_texto(f"[Error al cargar imagen {i+1}]"), 0, 1)
+
+        self.ln(4)
 
     def folio_grid(self, title, photo_files):
-        if not photo_files: 
+        """Una foto del folio por página, centrada y a máximo tamaño."""
+        if not photo_files:
             return
         for i, foto in enumerate(photo_files[:4]):
-            self.add_page()
-            self.add_custom_section(f"{title} - Evidencia {i+1}")
-            foto.seek(0)
-            img = Image.open(foto).convert("RGB")
-            temp_folio = f"temp_folio_{uuid.uuid4().hex}.jpg"
-            img.save(temp_folio, format="JPEG")
-            avail_w, avail_h = 190, 240
-            img_w, img_h = img.size
-            escala = min(avail_w/img_w, avail_h/img_h)
-            final_w, final_h = img_w * escala, img_h * escala
-            self.image(temp_folio, x=10 + (190 - final_w) / 2, y=self.get_y() + 5, w=final_w, h=final_h)
+            try:
+                self.add_page()
+                self.add_custom_section(f"{title} — Evidencia {i+1}")
+                foto.seek(0)
+                img = Image.open(foto).convert("RGB")
+                avail_w, avail_h = 186, 220
+                img_w, img_h = img.size
+                escala = min(avail_w / img_w, avail_h / img_h)
+                final_w, final_h = img_w * escala, img_h * escala
+
+                with archivo_temporal(suffix=".jpg") as tmp_folio:
+                    img.save(tmp_folio, format="JPEG", quality=95)
+                    x_center = 12 + (avail_w - final_w) / 2
+                    self.image(tmp_folio, x=x_center, y=self.get_y() + 5, w=final_w, h=final_h)
+            except Exception:
+                self.set_font('Arial', 'I', 9)
+                self.cell(0, 8, limpiar_texto(f"[Error al cargar folio {i+1}]"), 0, 1)
+
+    def separador_equipo(self):
+        """Línea visual entre equipos."""
+        self.set_draw_color(200, 200, 200)
+        self.set_line_width(0.3)
+        self.line(12, self.get_y(), self.w - 12, self.get_y())
+        self.set_line_width(0.2)
+        self.set_draw_color(0, 0, 0)
+        self.ln(5)
+
 
 # --- FUNCIÓN ENVÍO DE CORREO SMTP ---
 def enviar_correo(pdf_bytes, cliente, folio, sucursal, oficina, nombre_archivo, correos_extra, fecha_ejec, lista_destinatarios):
@@ -138,13 +274,21 @@ def enviar_correo(pdf_bytes, cliente, folio, sucursal, oficina, nombre_archivo, 
 
         remitente = st.secrets["EMAIL_SENDER"]
         password = st.secrets["EMAIL_PASSWORD"]
-        destinatarios = list(set(lista_destinatarios + ([c.strip() for c in correos_extra.split(",")] if correos_extra else [])))
+        extra = [c.strip() for c in correos_extra.split(",") if c.strip()] if correos_extra else []
+        destinatarios = list(set(lista_destinatarios + extra))
 
         msg = EmailMessage()
-        msg['Subject'] = limpiar_texto(f"Reporte Fotográfico BESCO: {cliente} | TK: {folio} | Of: {oficina}")
+        msg['Subject'] = limpiar_texto(f"Reporte Técnico BESCO: {cliente} | TK: {folio} | Of: {oficina}")
         msg['From'] = remitente
-        msg['To'] = ", ".join(destinatarios) 
-        msg.set_content(limpiar_texto(f"Se ha generado un nuevo reporte desde el Sistema de Evidencia Técnica BESCO.\n\nFecha Ejecución: {fecha_ejec}\nOficina: {oficina}\nCliente: {cliente}\nFolio: {folio}\nSucursal: {sucursal}"))
+        msg['To'] = ", ".join(destinatarios)
+        msg.set_content(limpiar_texto(
+            f"Se ha generado un nuevo reporte desde el Sistema de Evidencia Técnica BESCO.\n\n"
+            f"Fecha Ejecución: {fecha_ejec}\n"
+            f"Oficina: {oficina}\n"
+            f"Cliente: {cliente}\n"
+            f"Folio: {folio}\n"
+            f"Sucursal: {sucursal}"
+        ))
         msg.add_attachment(pdf_bytes, maintype='application', subtype='pdf', filename=nombre_archivo)
 
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
@@ -155,10 +299,11 @@ def enviar_correo(pdf_bytes, cliente, folio, sucursal, oficina, nombre_archivo, 
         st.error(f"❌ Error de conexión SMTP: {e}")
         return False
 
+
 # ==========================================
 # INTERFAZ GRÁFICA DE STREAMLIT
 # ==========================================
-st.title("📑 Portal de Soluciones BESCO - Reporte General")
+st.title("📑 Portal de Soluciones BESCO — Reporte General")
 
 st.subheader("1. Identificación General del Servicio")
 c_g1, c_g2, c_g3 = st.columns([2, 1, 1.5])
@@ -170,7 +315,7 @@ col_loc1, col_loc2 = st.columns(2)
 sucursal = col_loc1.text_input("Sucursal / Inmueble")
 
 lista_oficinas = [
-    "Acapulco", "Toluca", "Pachuca", "Michoacán", "Zonas/ CDMX", "CDMX", 
+    "Acapulco", "Toluca", "Pachuca", "Michoacán", "Zonas/ CDMX", "CDMX",
     "Ben & Company", "BX+", "Emerson", "Odoo", "Tampico"
 ]
 oficina = col_loc2.selectbox("Oficina Responsable", lista_oficinas)
@@ -197,7 +342,7 @@ leyendas_default = {
     "Hidrosanitario": "SE REALIZA REVISIÓN DE CESPOL, MEZCLADORA, MANGUERAS, LLAVES, WC, DESPACHADORES, EXTRACTORES Y CONEXIONES, SE DEJA FUNCIONANDO CORRECTAMENTE.",
     "Tableros Eléctricos": "SE REALIZA LIMPIEZA, REAPRIETE DE TORNILLERIA, TOMA DE AMPERAJES Y VOLTAJES, SE DEJA FUNCIONANDO CORRECTAMENTE.",
     "Iluminación": "SE REALIZA REVISIÓN GENERAL DE LÁMPARAS, SE CAMBIAN LAMPARAS FUNDIDAS, SE DEJA FUNCIONANDO CORRECTAMENTE.",
-    "Aire Acondicionado": "SE REALIZA LIMPIEZA GENERAL DE SERPENTINES, TOMADO PRESIÓN DE REFRIGERANTE, VOLTAJES, AMPERAJES, REAPRIRTE DE CONEXIONES, LIMPIEZA DE FILTROS, SE DEJA FUNCIONANDO CORRECTAMENTE."
+    "Aire Acondicionado": "SE REALIZA LIMPIEZA GENERAL DE SERPENTINES, TOMADO PRESIÓN DE REFRIGERANTE, VOLTAJES, AMPERAJES, REAPRIETE DE CONEXIONES, LIMPIEZA DE FILTROS, SE DEJA FUNCIONANDO CORRECTAMENTE."
 }
 
 equipos_data = []
@@ -207,7 +352,7 @@ for i in range(num_equipos):
         categorias_opciones = ["Ninguna", "Aire Acondicionado", "Tableros Eléctricos", "Hidroneumático", "Conservación", "Hidrosanitario", "Iluminación", "Otros"]
         esp = cols_cat[0].selectbox("Categoría", categorias_opciones, key=f"esp_{i}")
         estatus = cols_cat[1].selectbox("Estatus Final", ["Operando correctamente", "Operando con observaciones", "No queda operando"], key=f"est_{i}")
-        
+
         meds, otros = {}, ""
         if esp == "Aire Acondicionado":
             cols = st.columns(4)
@@ -217,22 +362,22 @@ for i in range(num_equipos):
             meds['Amperaje'] = cols[3].text_input("Amp", key=f"a_{i}")
         elif esp == "Otros":
             otros = st.text_area("Detalles/Mediciones:", key=f"o_{i}")
-            
+
         ca1, ca2, ca3 = st.columns(3)
         tag = ca1.text_input("TAG", key=f"tg_{i}")
         marca = ca2.text_input("Marca", key=f"mr_{i}")
         cap = ca3.text_input("Capacidad", key=f"cp_{i}")
-        
+
         texto_defecto = leyendas_default.get(esp, "")
         actividades = st.text_area("Actividades Realizadas", value=texto_defecto, height=80, key=f"act_{i}_{esp}")
         com = st.text_area("Comentarios Extras", key=f"com_{i}")
-        
+
         fa = st.file_uploader("Fotos ANTES", accept_multiple_files=True, key=f"fa_{i}")
         fd = st.file_uploader("Fotos DESPUÉS", accept_multiple_files=True, key=f"fd_{i}")
-        
+
         equipos_data.append({
-            "numero": i+1, "esp": esp, "estatus": estatus, "actividades": actividades, 
-            "meds": meds, "otros": otros, "tag": tag, "marca": marca, "cap": cap, 
+            "numero": i+1, "esp": esp, "estatus": estatus, "actividades": actividades,
+            "meds": meds, "otros": otros, "tag": tag, "marca": marca, "cap": cap,
             "com": com, "fa": fa, "fd": fd
         })
 
@@ -257,101 +402,186 @@ mapeo_correos = {
 }
 
 dest_oficina = mapeo_correos.get(oficina, ["gerardo.mendez@besco.mx"])
-if "gerardo.mendez@besco.mx" not in dest_oficina: 
+if "gerardo.mendez@besco.mx" not in dest_oficina:
     dest_oficina.append("gerardo.mendez@besco.mx")
 
 st.info(f"📧 Destinatarios automáticos: {', '.join(dest_oficina)}")
 correos_extra = st.text_input("Correos adicionales (separados por coma)")
 
-# --- PROCESO DE GENERACIÓN EN BOTÓN UNIFICADO ---
+# --- GENERACIÓN DEL PDF ---
+def generar_pdf(cliente, folio, fecha_ejecucion, oficina, sucursal, tecnico, supervisor,
+                tipo_serv, referencia, equipos_data, df_mat, archivos_folio):
+
+    pdf = BESCO_PDF()
+    pdf.add_page()
+
+    # --- Sección 1: Información General ---
+    pdf.add_custom_section("Información General del Servicio")
+    f_ejec_str = fecha_ejecucion.strftime('%d/%m/%Y')
+
+    color_op = {
+        "Operando correctamente": (0, 150, 80),
+        "Operando con observaciones": (200, 130, 0),
+        "No queda operando": (200, 30, 30),
+    }
+
+    datos_generales = [
+        ("Cliente", cliente),
+        ("Folio / OT / TK", folio),
+        ("Fecha de Ejecución", f_ejec_str),
+        ("Oficina Responsable", oficina),
+        ("Sucursal / Inmueble", sucursal if sucursal else "—"),
+        ("Técnico Asignado", tecnico if tecnico else "—"),
+        ("Supervisor", supervisor if supervisor else "—"),
+        ("Tipo de Servicio", f"{tipo_serv} ({referencia})"),
+    ]
+    pdf.tabla_info(datos_generales)
+
+    # --- Resumen de equipos ---
+    if len(equipos_data) > 1:
+        pdf.add_custom_section("Resumen de Equipos")
+        pdf.set_font('Arial', 'B', 9)
+        pdf.set_fill_color(30, 58, 95)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(10, 7, "#", 1, 0, 'C', fill=True)
+        pdf.cell(50, 7, "Categoría", 1, 0, 'C', fill=True)
+        pdf.cell(30, 7, "TAG", 1, 0, 'C', fill=True)
+        pdf.cell(96, 7, "Estatus Final", 1, 1, 'C', fill=True)
+        pdf.set_text_color(0, 0, 0)
+
+        for eq in equipos_data:
+            pdf.set_font('Arial', '', 9)
+            pdf.set_fill_color(245, 245, 245)
+            r, g, b = color_op.get(eq['estatus'], (0, 0, 0))
+            pdf.cell(10, 6, str(eq['numero']), 1, 0, 'C')
+            pdf.cell(50, 6, limpiar_texto(eq['esp']), 1, 0, 'L')
+            pdf.cell(30, 6, limpiar_texto(eq['tag'] or '—'), 1, 0, 'C')
+            pdf.set_text_color(r, g, b)
+            pdf.set_font('Arial', 'B', 9)
+            pdf.cell(96, 6, limpiar_texto(eq['estatus']), 1, 1, 'L')
+            pdf.set_text_color(0, 0, 0)
+        pdf.ln(4)
+
+    # --- Sección por equipo ---
+    for eq in equipos_data:
+        if pdf.get_y() > 230:
+            pdf.add_page()
+
+        pdf.add_custom_section(f"EQUIPO {eq['numero']}: {eq['esp']}")
+
+        # Ficha técnica del equipo
+        datos_eq = []
+        if eq['tag']:    datos_eq.append(("TAG", eq['tag']))
+        if eq['marca']:  datos_eq.append(("Marca", eq['marca']))
+        if eq['cap']:    datos_eq.append(("Capacidad", eq['cap']))
+
+        r, g, b = color_op.get(eq['estatus'], (0, 0, 0))
+        pdf.set_font('Arial', 'B', 10)
+        pdf.set_text_color(r, g, b)
+        pdf.cell(0, 7, limpiar_texto(f"  Estatus Final: {eq['estatus']}"), 0, 1, 'L')
+        pdf.set_text_color(0, 0, 0)
+
+        if datos_eq:
+            pdf.tabla_info(datos_eq)
+
+        # Mediciones técnicas (A/C)
+        valid_meds = {k: v for k, v in eq['meds'].items() if v}
+        if valid_meds:
+            pdf.tabla_mediciones(valid_meds)
+
+        # Detalles libres (Otros)
+        if eq['otros']:
+            pdf.bloque_texto("Detalles / Mediciones", eq['otros'])
+
+        # Actividades
+        if eq['actividades']:
+            pdf.bloque_texto("Actividades Realizadas", eq['actividades'])
+
+        # Comentarios
+        if eq['com']:
+            pdf.bloque_texto("Comentarios Extras", eq['com'], color_fondo=(255, 252, 240))
+
+        # Fotos
+        pdf.photo_grid(f"ANTES — Equipo {eq['numero']}", eq['fa'], f"antes_{eq['numero']}")
+        pdf.photo_grid(f"DESPUÉS — Equipo {eq['numero']}", eq['fd'], f"despues_{eq['numero']}")
+
+        pdf.separador_equipo()
+
+    # --- Materiales ---
+    df_c = df_mat.dropna(subset=["Descripción"])
+    if not df_c.empty:
+        if pdf.get_y() > 220:
+            pdf.add_page()
+        pdf.add_custom_section("Materiales Utilizados")
+        pdf.set_font('Arial', 'B', 9)
+        pdf.set_fill_color(30, 58, 95)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(30, 7, "CANTIDAD", 1, 0, 'C', fill=True)
+        pdf.cell(pdf.w - 54, 7, limpiar_texto("DESCRIPCIÓN"), 1, 1, 'C', fill=True)
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font('Arial', '', 9)
+        for idx, (_, row) in enumerate(df_c.iterrows()):
+            fill = idx % 2 == 0
+            pdf.set_fill_color(245, 247, 252) if fill else pdf.set_fill_color(255, 255, 255)
+            pdf.cell(30, 7, limpiar_texto(str(row["Cantidad"])), 1, 0, 'C', fill=fill)
+            pdf.cell(pdf.w - 54, 7, limpiar_texto(str(row["Descripción"])), 1, 1, 'L', fill=fill)
+
+    # --- Folio BESCO (imágenes) ---
+    fotos_folio = [f for f in archivos_folio if f and "image" in f.type]
+    if fotos_folio:
+        pdf.folio_grid("FOLIO BESCO", fotos_folio)
+
+    # Serializar PDF
+    pdf_bytes = pdf.output(dest='S').encode('latin-1', 'replace')
+
+    # Fusionar PDFs adjuntos
+    pdfs_folio = [f for f in archivos_folio if f and f.type == "application/pdf"]
+    if pdfs_folio:
+        merger = PdfWriter()
+        merger.append(io.BytesIO(pdf_bytes))
+        for p in pdfs_folio:
+            p.seek(0)
+            merger.append(p)
+        out = io.BytesIO()
+        merger.write(out)
+        pdf_bytes = out.getvalue()
+
+    return pdf_bytes, f_ejec_str
+
+
+# --- BOTÓN UNIFICADO ---
 if st.button("🚀 Generar y Enviar Reporte Final", type="primary", use_container_width=True):
     if not cliente or not folio:
         st.error("⚠️ Los campos Cliente y Folio son obligatorios para generar el reporte.")
     else:
         with st.spinner("Construyendo documento PDF y procesando imágenes..."):
-            pdf = BESCO_PDF()
-            pdf.add_page()
-            
-            pdf.add_custom_section("Información General")
-            pdf.set_font('Arial', '', 10)
-            pdf.cell(0, 7, limpiar_texto(f"Cliente: {cliente} | Folio: {folio}"), 0, 1)
-            f_ejec_str = fecha_ejecucion.strftime('%d/%m/%Y')
-            pdf.cell(0, 7, limpiar_texto(f"Fecha de Ejecución: {f_ejec_str} | Oficina: {oficina}"), 0, 1)
-            if sucursal: 
-                pdf.cell(0, 7, limpiar_texto(f"Sucursal: {sucursal}"), 0, 1)
-            pdf.set_font('Arial', 'B', 10)
-            pdf.cell(0, 7, limpiar_texto(f"Técnico: {tecnico} | Supervisor: {supervisor}"), 0, 1)
-            pdf.set_font('Arial', '', 10)
-            pdf.cell(0, 7, limpiar_texto(f"Servicio: {tipo_serv} ({referencia})"), 0, 1)
-            pdf.ln(5)
+            try:
+                pdf_bytes, f_ejec_str = generar_pdf(
+                    cliente, folio, fecha_ejecucion, oficina, sucursal,
+                    tecnico, supervisor, tipo_serv, referencia,
+                    equipos_data, df_mat, archivos_folio
+                )
 
-            for eq in equipos_data:
-                if pdf.get_y() > 240: 
-                    pdf.add_page()
-                pdf.add_custom_section(f"EQUIPO {eq['numero']}: {eq['esp']}")
-                
-                pdf.set_font('Arial', 'B', 10)
-                pdf.cell(0, 7, limpiar_texto(f"Estatus Final: {eq['estatus']}"), 0, 1)
-                pdf.set_font('Arial', '', 10)
-                
-                valid_meds = {k: v for k, v in eq['meds'].items() if v}
-                for k, v in valid_meds.items(): 
-                    pdf.cell(60, 6, limpiar_texto(f"{k}:"), 1)
-                    pdf.cell(130, 6, limpiar_texto(f"{v}"), 1, 1)
-                if eq['otros']: 
-                    pdf.multi_cell(0, 6, limpiar_texto(f"Detalles: {eq['otros']}"), 1)
-                    
-                if eq['tag'] or eq['marca'] or eq['cap']: 
-                    pdf.set_font('Arial', 'B', 9)
-                    pdf.cell(0, 7, limpiar_texto(f"TAG: {eq['tag']} | Marca: {eq['marca']} | Cap: {eq['cap']}"), 0, 1)
-                    pdf.set_font('Arial', '', 10)
-                
-                if eq['actividades']:
-                    pdf.multi_cell(0, 6, limpiar_texto(f"Actividades Realizadas:\n{eq['actividades']}"), 1)
-                if eq['com']: 
-                    pdf.multi_cell(0, 6, limpiar_texto(f"Comentarios Extras:\n{eq['com']}", 1))
-                    
-                pdf.photo_grid(f"Antes (Eq. {eq['numero']})", eq['fa'], f"antes_{eq['numero']}")
-                pdf.photo_grid(f"Después (Eq. {eq['numero']})", eq['fd'], f"despues_{eq['numero']}")
-                pdf.ln(5)
+                nom_archivo = f"Reporte_BESCO_{cliente}_{folio}.pdf".replace(" ", "_")
 
-            df_c = df_mat.dropna(subset=["Descripción"])
-            if not df_c.empty:
-                if pdf.get_y() > 220: 
-                    pdf.add_page()
-                pdf.add_custom_section("Materiales Utilizados")
-                pdf.set_font('Arial', 'B', 9)
-                pdf.cell(30, 7, "CANT.", 1, 0, 'C')
-                pdf.cell(160, 7, limpiar_texto("DESCRIPCIÓN"), 1, 1, 'C')
-                pdf.set_font('Arial', '', 9)
-                for _, row in df_c.iterrows(): 
-                    pdf.cell(30, 7, str(row["Cantidad"]), 1)
-                    pdf.cell(160, 7, limpiar_texto(str(row["Descripción"])), 1, 1)
+                correo_enviado = enviar_correo(
+                    pdf_bytes, cliente, folio, sucursal, oficina,
+                    nom_archivo, correos_extra, f_ejec_str, dest_oficina
+                )
 
-            fotos_folio = [f for f in archivos_folio if f and "image" in f.type]
-            if fotos_folio: 
-                pdf.folio_grid("FOLIO BESCO", fotos_folio)
+                if correo_enviado:
+                    st.success("✅ Reporte enviado exitosamente por correo y listo para descarga.")
+                else:
+                    st.warning("⚠️ El PDF se generó correctamente, pero hubo un problema con el envío SMTP. Descárgalo manualmente:")
 
-            pdf_bytes = pdf.output(dest='S').encode('latin-1', 'replace')
+                st.download_button(
+                    "📥 Descargar PDF del Reporte",
+                    data=pdf_bytes,
+                    file_name=nom_archivo,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
-            pdfs_folio = [f for f in archivos_folio if f and f.type == "application/pdf"]
-            if pdfs_folio:
-                merger = PdfWriter()
-                merger.append(io.BytesIO(pdf_bytes))
-                for p in pdfs_folio: 
-                    p.seek(0) 
-                    merger.append(p)
-                out = io.BytesIO()
-                merger.write(out)
-                pdf_bytes = out.getvalue()
-
-            nom_archivo = f"Reporte_BESCO_{cliente}_{folio}.pdf".replace(" ", "_")
-            
-            correo_enviado = enviar_correo(pdf_bytes, cliente, folio, sucursal, oficina, nom_archivo, correos_extra, f_ejec_str, dest_oficina)
-            
-            if correo_enviado:
-                st.success("✅ Reporte enviado exitosamente por correo y listo para descarga local.")
-            else:
-                st.warning("⚠️ El PDF se generó, pero hubo un detalle de comunicación SMTP. Descárgalo de forma manual aquí abajo:")
-            
-            st.download_button("📥 Descargar PDF del Reporte", data=pdf_bytes, file_name=nom_archivo, mime="application/pdf", use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Error al generar el PDF: {e}")
+                st.exception(e)
