@@ -51,7 +51,6 @@ def formatear_moneda(valor: float) -> str:
     return f"${float(valor):,.2f}"
 
 def limpiar_texto_pdf(texto):
-    """Limpia caracteres especiales que rompen FPDF (latin-1)"""
     if not texto:
         return ""
     texto = str(texto)
@@ -110,6 +109,28 @@ def obtener_preciario_besco():
     df = df[df["descripcion"] != ""].copy()
     
     return df
+
+# Callback unificado para guardar en historial al presionar el botón de descarga
+def registrar_en_historial(folio, fecha, cliente, empresa, nombre_cot, total, cotizador):
+    try:
+        creds = obtener_credenciales_gcp()
+        gc = gspread.authorize(creds)
+        # Abre exactamente el archivo por su nombre
+        sheet = gc.open("Historial Cotizaciones Besco")
+        
+        try:
+            ws_acumulado = sheet.worksheet("Hoja 1")
+        except gspread.exceptions.WorksheetNotFound:
+            ws_acumulado = sheet.add_worksheet(title="Hoja 1", rows="100", cols="10")
+            ws_acumulado.append_row(["FOLIO", "FECHA", "CLIENTE", "EMPRESA / INMUEBLE", "NOMBRE COTIZACION", "TOTAL PRESUPUESTADO", "COTIZADOR"])
+        
+        ws_acumulado.append_row([
+            folio, fecha, cliente, empresa, nombre_cot, round(total, 2), cotizador
+        ])
+        st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en 'Historial Cotizaciones Besco' (Hoja 1)."
+    except Exception as e:
+        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}. ¿Compartiste el archivo 'Historial Cotizaciones Besco' con el correo del bot?"
+
 
 # ==========================================
 # INICIALIZAR ESTADO
@@ -265,6 +286,14 @@ with st.container(border=True):
 # ==========================================
 st.markdown("## 3. Resumen y Documento Final")
 
+# Mostrar mensajes de éxito o error del Historial
+if "mensaje_exito" in st.session_state:
+    st.success(st.session_state.mensaje_exito)
+    del st.session_state.mensaje_exito
+if "mensaje_error" in st.session_state:
+    st.error(st.session_state.mensaje_error)
+    del st.session_state.mensaje_error
+
 if st.session_state.conceptos_cotizacion:
     df = pd.DataFrame(st.session_state.conceptos_cotizacion)
     st.dataframe(df, use_container_width=True, hide_index=True)
@@ -290,56 +319,21 @@ if st.session_state.conceptos_cotizacion:
             
     st.markdown("---")
     
+    # -----------------------------------------------------
+    # Preparación de datos PDF
+    # -----------------------------------------------------
     datos = st.session_state.datos_cotizacion
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime('%d/%m/%Y') if datos["fecha"] else date.today().strftime('%d/%m/%Y')
     nombre_cot = datos.get("nombre_cotizacion", "").strip()
     
-    # -----------------------------------------------------
-    # Lógica de Guardado en Acumulado (Google Sheets)
-    # -----------------------------------------------------
-    if st.button("☁️ Registrar en Acumulado", use_container_width=True):
-        try:
-            with st.spinner("Guardando registro en Google Sheets..."):
-                creds = obtener_credenciales_gcp()
-                gc = gspread.authorize(creds)
-                url = st.secrets.get("PRECIARIO_BESCO_URL", "")
-                sheet = gc.open_by_url(url)
-                
-                try:
-                    ws_acumulado = sheet.worksheet("Acumulado")
-                except gspread.exceptions.WorksheetNotFound:
-                    # Crea la hoja si no existe
-                    ws_acumulado = sheet.add_worksheet(title="Acumulado", rows="100", cols="10")
-                    ws_acumulado.append_row(["FOLIO", "FECHA", "CLIENTE", "EMPRESA / INMUEBLE", "NOMBRE COTIZACION", "TOTAL PRESUPUESTADO", "COTIZADOR"])
-                
-                # Insertar la fila de datos
-                ws_acumulado.append_row([
-                    folio_pdf,
-                    fecha_pdf,
-                    datos["cliente_nombre"],
-                    datos["cliente_empresa"],
-                    nombre_cot,
-                    round(total, 2),
-                    datos["cotiza_nombre"]
-                ])
-            st.success("✅ ¡Cotización registrada exitosamente en la pestaña 'Acumulado'!")
-        except Exception as e:
-            st.error(f"❌ Error al intentar guardar en el Acumulado: {e}")
-
-    # -----------------------------------------------------
-    # Lógica de FPDF Integrada con limpieza de caracteres
-    # -----------------------------------------------------
     class PDFCotizacion(FPDF):
         def header(self):
+            # Logo ajustado al 50% más grande (de 30 a 45)
             if os.path.exists("logo besco 2026.jpeg"):
-                self.image("logo besco 2026.jpeg", 10, 8, 30)
+                self.image("logo besco 2026.jpeg", 10, 8, 45)
             
-            self.set_font('Arial', 'B', 24)
-            self.set_text_color(30, 58, 95)
-            self.set_xy(45, 10)
-            self.cell(40, 10, limpiar_texto_pdf("besco"), 0, 0, 'L')
-            
+            # Textos de contacto (se eliminó la palabra 'besco' flotante)
             self.set_font('Arial', '', 8)
             self.set_text_color(0, 0, 0)
             self.set_xy(120, 10)
@@ -475,19 +469,22 @@ if st.session_state.conceptos_cotizacion:
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(0, 5, limpiar_texto_pdf("GRUPO BESCO"), 0, 1, 'C')
     
-    # Botón de Descarga FPDF
+    # -----------------------------------------------------
+    # Botón Único: Descarga PDF + Registro en Historial
+    # -----------------------------------------------------
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
     
-    # Limpiamos el nombre del archivo para que no tenga espacios ni caracteres raros
     nombre_archivo_seguro = "".join([c for c in nombre_cot if c.isalnum() or c in " -_"]).replace(" ", "_")
     nombre_archivo = f"Cotizacion_{folio_pdf}_{nombre_archivo_seguro}.pdf" if nombre_archivo_seguro else f"Cotizacion_{folio_pdf}.pdf"
     
     st.download_button(
-        label="📥 Descargar Cotización en PDF",
+        label="💾 Registrar y Descargar Cotización",
         data=pdf_bytes,
         file_name=nombre_archivo,
         mime="application/pdf",
         type="primary",
+        on_click=registrar_en_historial,
+        args=(folio_pdf, fecha_pdf, datos["cliente_nombre"], datos["cliente_empresa"], nombre_cot, total, datos["cotiza_nombre"]),
         use_container_width=True
     )
 else:
