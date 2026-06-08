@@ -2,6 +2,7 @@ import os
 from datetime import date
 import pandas as pd
 import streamlit as st
+from fpdf import FPDF
 
 try:
     import gspread
@@ -76,22 +77,18 @@ def obtener_preciario_besco():
         
     df = pd.DataFrame(records)
     
-    # Estandarización de columnas básica
     df.columns = [str(c).strip().upper() for c in df.columns]
     
-    # Identificar columnas clave dinámicamente
     col_clave = next((c for c in df.columns if c in ["CLAVE", "ITEM", "CODIGO", "SKU"]), df.columns[0])
     col_desc = next((c for c in df.columns if c in ["CONCEPTO", "DESCRIPCION", "PRODUCTO"]), df.columns[1])
     col_unidad = next((c for c in df.columns if c in ["UNIDAD", "UOM", "UM"]), "UNIDAD")
     col_tipo = next((c for c in df.columns if "TIPO" in c or "SERVICIO" in c), "TIPO DE SERVICIO")
     
-    # Renombrar a estándar interno para facilitar el manejo
     mapa = {col_clave: "clave", col_desc: "descripcion"}
     if col_unidad in df.columns: mapa[col_unidad] = "unidad"
     if col_tipo in df.columns: mapa[col_tipo] = "tipo_servicio"
     df = df.rename(columns=mapa)
     
-    # Si no existen, crearlas vacías
     for col in ["clave", "descripcion", "unidad", "tipo_servicio"]:
         if col not in df.columns:
             df[col] = "S/C"
@@ -114,15 +111,15 @@ st.markdown("## 1. Identificación del cliente y persona que cotiza")
 
 with st.container(border=True):
     col_g1, col_g2 = st.columns(2)
-    with col_g1: folio = st.text_input("Folio de cotización", value=st.session_state.datos_cotizacion["folio"])
+    with col_g1: folio = st.text_input("Folio de cotización", value=st.session_state.datos_cotizacion["folio"], placeholder="Ej. COT-001")
     with col_g2: fecha = st.date_input("Fecha de cotización", value=st.session_state.datos_cotizacion["fecha"])
 
     col_c1, col_c2 = st.columns(2)
     with col_c1: cliente_nombre = st.text_input("Nombre del cliente", value=st.session_state.datos_cotizacion["cliente_nombre"])
-    with col_c2: cliente_empresa = st.text_input("Empresa / Razón social", value=st.session_state.datos_cotizacion["cliente_empresa"])
+    with col_c2: cliente_empresa = st.text_input("Empresa / Inmueble", value=st.session_state.datos_cotizacion["cliente_empresa"])
 
     col_c3, col_c4, col_c5 = st.columns(3)
-    with col_c3: cliente_contacto = st.text_input("Persona de contacto", value=st.session_state.datos_cotizacion["cliente_contacto"])
+    with col_c3: cliente_contacto = st.text_input("Persona de contacto (Atención)", value=st.session_state.datos_cotizacion["cliente_contacto"])
     with col_c4: cliente_telefono = st.text_input("Teléfono del cliente", value=st.session_state.datos_cotizacion["cliente_telefono"])
     with col_c5: cliente_correo = st.text_input("Correo del cliente", value=st.session_state.datos_cotizacion["cliente_correo"])
 
@@ -156,9 +153,8 @@ with st.container(border=True):
             if df_preciario.empty:
                 st.warning("El Preciario BESCO está vacío.")
             else:
-                # Extraer columnas de precios (Regiones) dinámicamente y filtrar opciones no deseadas
                 columnas_region = [c for c in df_preciario.columns if "PU" in str(c).upper() or "$" in str(c) or "PRECIO" in str(c).upper()]
-                columnas_region = [c for c in columnas_region if "PU METRO NORTE & SUR" not in str(c).upper()]
+                columnas_region = [c for c in columnas_region if "METRO NORTE" not in str(c).upper()]
                 
                 if not columnas_region: columnas_region = ["PRECIO UNITARIO"]
                 
@@ -187,22 +183,17 @@ with st.container(border=True):
                     clave_preciario = str(fila.get("clave", "S/C"))
                     tipo_servicio = str(fila.get("tipo_servicio", "S/C"))
                     descripcion = str(fila.get("descripcion", ""))
-                    unidad = str(fila.get("unidad", "S/C"))
+                    unidad = str(fila.get("unidad", "S/C")) if str(fila.get("unidad", "")) != "" else "S/C"
                     
-                    # Limpieza robusta del precio
                     precio_raw = str(fila.get(region_seleccionada, "0")).replace('$', '').replace(',', '').strip()
                     precio_unitario = float(precio_raw) if precio_raw.replace('.', '', 1).isdigit() else 0.00
                     
-                    if precio_unitario == 0.00:
-                        st.warning("⚠️ Este concepto tiene el precio en $0.00 o en blanco en la base de datos.")
-
                     col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
                     with col_b1: st.text_input("Clave / Item", value=clave_preciario, disabled=True)
                     with col_b2: st.text_input("Tipo de servicio", value=tipo_servicio, disabled=True)
                     with col_b3: st.text_input("Unidad", value=unidad, disabled=True)
                     st.text_area("Descripción de producto o servicio", value=descripcion, height=80, disabled=True)
                     
-                    # Permite ajustar el precio aunque venga de la base
                     precio_unitario = st.number_input("Precio Unitario Base ($)", value=precio_unitario, format="%.2f")
 
         except Exception as e:
@@ -251,9 +242,9 @@ with st.container(border=True):
             st.rerun()
 
 # ==========================================
-# SECCIÓN 3: CONCEPTOS CAPTURADOS
+# SECCIÓN 3: RESUMEN Y GENERACIÓN DE PDF
 # ==========================================
-st.markdown("## 3. Resumen de Cotización")
+st.markdown("## 3. Resumen y Documento Final")
 
 if st.session_state.conceptos_cotizacion:
     df = pd.DataFrame(st.session_state.conceptos_cotizacion)
@@ -277,5 +268,163 @@ if st.session_state.conceptos_cotizacion:
         if st.button("♻️ Limpiar toda la cotización", use_container_width=True):
             limpiar_cotizacion()
             st.rerun()
+            
+    st.markdown("---")
+    
+    # Lógica de FPDF Integrada
+    datos = st.session_state.datos_cotizacion
+    folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
+    fecha_pdf = datos["fecha"].strftime('%d/%m/%Y') if datos["fecha"] else date.today().strftime('%d/%m/%Y')
+    
+    class PDFCotizacion(FPDF):
+        def header(self):
+            if os.path.exists("logo besco 2026.jpeg"):
+                self.image("logo besco 2026.jpeg", 10, 8, 30)
+            
+            self.set_font('Arial', 'B', 24)
+            self.set_text_color(30, 58, 95)
+            self.set_xy(45, 10)
+            self.cell(40, 10, "besco", 0, 0, 'L')
+            
+            self.set_font('Arial', '', 8)
+            self.set_text_color(0, 0, 0)
+            self.set_xy(120, 10)
+            self.multi_cell(80, 4, "Grupo Besco SA de CV\nJOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65\nRFC. GBE101207523", 0, 'R')
+            self.ln(10)
+            
+        def footer(self):
+            self.set_y(-45)
+            self.set_font('Arial', 'I', 7)
+            terminos = (
+                "• TIEMPO DE ENTREGA DE MATERIAL DE 1 A 2 DÍAS HÁBILES.\n"
+                "• TIEMPO DE ENTREGA DEL SERVICIO DE 1 A 2 DÍAS HÁBILES.\n"
+                "• SE REQUIERE ORDEN DE COMPRA, PEDIDO, O CONTRATO.\n"
+                "• PAGO CONTRA ENTREGA DEL SERVICIO.\n"
+                "• VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+                "• EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS.\n"
+                "• LOS TRABAJOS SE EJECUTARÁN EN HORARIO HÁBIL, EN CASO DE QUE SE REQUIERA FUERA DEL MISMO SE TENDRÁ VARIACIÓN EN EL COSTO 35%"
+            )
+            self.multi_cell(0, 4, terminos, 0, 'L')
+
+    # Instanciar y construir PDF
+    pdf = PDFCotizacion()
+    pdf.add_page()
+    
+    # Bloque de Información del Cliente
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(35, 5, "CLIENTE:", 0, 0, 'R')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(80, 5, datos["cliente_nombre"].upper(), 0, 0, 'L')
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(45, 5, "FECHA DE COTIZACION:", 0, 0, 'R')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 5, fecha_pdf, 0, 1, 'L')
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(35, 5, "EMPRESA:", 0, 0, 'R')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(80, 5, datos["cliente_empresa"].upper(), 0, 0, 'L')
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(45, 5, "FECHA VIGENCIA:", 0, 0, 'R')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(30, 5, "15 DIAS HABILES", 0, 1, 'L')
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(35, 5, "FOLIO BESCO:", 0, 0, 'R')
+    pdf.set_font('Arial', 'B', 9)
+    pdf.set_text_color(18, 52, 86)
+    pdf.cell(80, 5, folio_pdf, 0, 1, 'L')
+    pdf.set_text_color(0, 0, 0)
+    
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(35, 5, "ATENCION:", 0, 0, 'R')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(80, 5, datos["cliente_contacto"].upper(), 0, 1, 'L')
+    pdf.ln(8)
+    
+    # Introducción
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(0, 5, "Por medio de la presente y a nombre de Grupo Besco SA de CV, presento la siguiente cotizacion:", 0, 1, 'L')
+    pdf.ln(4)
+    
+    # Encabezado de Tabla
+    pdf.set_fill_color(153, 194, 255)
+    pdf.set_font('Arial', 'B', 8)
+    pdf.cell(30, 8, "CODIGO", 1, 0, 'C', fill=True)
+    pdf.cell(80, 8, "CONCEPTO", 1, 0, 'C', fill=True)
+    pdf.cell(15, 8, "UNIDAD", 1, 0, 'C', fill=True)
+    pdf.cell(20, 8, "CANTIDAD", 1, 0, 'C', fill=True)
+    pdf.cell(20, 8, "PU", 1, 0, 'C', fill=True)
+    pdf.cell(25, 8, "IMPORTE", 1, 1, 'C', fill=True)
+    
+    pdf.set_font('Arial', '', 8)
+    
+    # Filas Dinámicas
+    for c in st.session_state.conceptos_cotizacion:
+        if pdf.get_y() > 240:
+            pdf.add_page()
+            
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+        
+        pdf.set_xy(x_start + 30, y_start)
+        pdf.multi_cell(80, 5, c['Concepto'], 0, 'L')
+        max_y = pdf.get_y()
+        h = max_y - y_start if max_y - y_start > 8 else 8
+        
+        pdf.set_xy(x_start, y_start)
+        pdf.cell(30, h, str(c['Item']), 1, 0, 'C')
+        pdf.set_xy(x_start + 30, y_start)
+        pdf.cell(80, h, "", 1, 0)
+        pdf.set_xy(x_start + 110, y_start)
+        pdf.cell(15, h, str(c['Unidad']), 1, 0, 'C')
+        pdf.cell(20, h, f"{c['Cantidad']:.2f}", 1, 0, 'C')
+        pdf.cell(20, h, f"$ {c['Precio Venta']:,.2f}", 1, 0, 'R')
+        pdf.cell(25, h, f"$ {c['Importe']:,.2f}", 1, 1, 'R')
+        
+        pdf.set_y(y_start + h)
+    
+    # Totales
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(145, 6, "SUBTOTAL", 0, 0, 'R')
+    pdf.cell(15, 6, "$", 0, 0, 'R')
+    pdf.cell(30, 6, f"{subtotal:,.2f}", 0, 1, 'R')
+    
+    pdf.cell(145, 6, "IVA 16%", 0, 0, 'R')
+    pdf.cell(15, 6, "$", 0, 0, 'R')
+    pdf.cell(30, 6, f"{iva:,.2f}", 0, 1, 'R')
+    
+    pdf.cell(145, 6, "TOTAL PRESUPUESTADO", 0, 0, 'R')
+    pdf.cell(15, 6, "$", 0, 0, 'R')
+    pdf.cell(30, 6, f"{total:,.2f}", 0, 1, 'R')
+    
+    # Firma Integrada
+    if pdf.get_y() > 210:
+        pdf.add_page()
+        
+    pdf.ln(20)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(0, 5, "ATENTAMENTE", 0, 1, 'C')
+    pdf.ln(12)
+    pdf.cell(0, 4, "___________________________________", 0, 1, 'C')
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(0, 5, datos["cotiza_nombre"].strip().upper(), 0, 1, 'C')
+    pdf.cell(0, 5, datos["cotiza_puesto"].upper(), 0, 1, 'C')
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(0, 5, "GRUPO BESCO", 0, 1, 'C')
+    
+    # Botón de Descarga FPDF
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    
+    st.download_button(
+        label="📥 Descargar Cotización en PDF",
+        data=pdf_bytes,
+        file_name=f"Cotizacion_{folio_pdf}.pdf",
+        mime="application/pdf",
+        type="primary",
+        use_container_width=True
+    )
 else:
-    st.info("Aún no hay conceptos agregados a la cotización.")
+    st.info("Agrega conceptos para generar el documento PDF.")
