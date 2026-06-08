@@ -173,58 +173,81 @@ class BESCO_PDF(FPDF):
         self.set_text_color(0, 0, 0)
 
     def photo_grid(self, title, photos, prefix="img"):
-        """Grilla de fotos 2 columnas con pie de foto y relación de aspecto correcta."""
+        """Grilla de fotos 2 columnas con pie de foto y paginación correcta."""
         if not photos:
             return
-        if self.get_y() > 230:
-            self.add_page()
 
+        # Encabezado de sección de fotos
+        if self.get_y() > 250:
+            self.add_page()
         self.set_font('Arial', 'BI', 9)
         self.set_text_color(30, 58, 95)
         self.cell(0, 6, limpiar_texto(f"  Fotografías — {title}"), 0, 1, 'L')
         self.set_text_color(0, 0, 0)
+        self.ln(1)
 
-        MAX_W = 89
-        MAX_H = 66
-        ESPACIO_H = 72   # alto de celda por fila (foto + pie)
+        MAX_W    = 89    # ancho máximo por foto (mm)
+        MAX_H    = 70    # alto máximo por foto (mm)
+        PIE_H    = 5     # altura del pie de foto (mm)
+        GAP_V    = 4     # espacio vertical entre filas (mm)
+        FILA_H   = MAX_H + PIE_H + GAP_V   # altura total por fila
         MARGEN_X = 12
+        COL_PASO = 95    # paso horizontal entre columnas
 
-        for i, foto in enumerate(photos):
-            try:
-                foto.seek(0)
-                img = Image.open(foto).convert("RGB")
+        # Agrupar fotos en filas de 2
+        filas = [photos[i:i+2] for i in range(0, len(photos), 2)]
 
-                # Calcular dimensiones respetando aspecto
-                img_w, img_h = img.size
-                escala = min(MAX_W / img_w, MAX_H / img_h)
-                final_w = img_w * escala
-                final_h = img_h * escala
-
-                col = i % 2
-                if col == 0 and i > 0 and (self.get_y() + ESPACIO_H > 270):
-                    self.add_page()
-
-                with archivo_temporal(suffix=".jpg") as tmp_img:
-                    img.save(tmp_img, format="JPEG", quality=90)
-                    y_act = self.get_y()
-                    x_pos = MARGEN_X + col * 95 + (MAX_W - final_w) / 2
-                    self.image(tmp_img, x=x_pos, y=y_act, w=final_w, h=final_h)
-
-                # Pie de foto
-                self.set_xy(MARGEN_X + col * 95, y_act + MAX_H + 1)
-                self.set_font('Arial', 'I', 7)
-                self.set_text_color(100, 100, 100)
-                self.cell(MAX_W, 4, limpiar_texto(f"Foto {i+1} — {title}"), 0, 0, 'C')
+        foto_num = 0
+        for fila in filas:
+            # Verificar espacio para esta fila completa
+            if self.get_y() + FILA_H > 272:
+                self.add_page()
+                # Repetir encabezado en página nueva
+                self.set_font('Arial', 'BI', 9)
+                self.set_text_color(30, 58, 95)
+                self.cell(0, 6, limpiar_texto(f"  Fotografías (cont.) — {title}"), 0, 1, 'L')
                 self.set_text_color(0, 0, 0)
+                self.ln(1)
 
-                if col == 1 or i == len(photos) - 1:
-                    self.set_y(y_act + ESPACIO_H)
+            y_fila = self.get_y()
 
-            except Exception as e:
-                self.set_font('Arial', 'I', 8)
-                self.cell(0, 6, limpiar_texto(f"[Error al cargar imagen {i+1}]"), 0, 1)
+            for col, foto in enumerate(fila):
+                foto_num += 1
+                try:
+                    foto.seek(0)
+                    img = Image.open(foto).convert("RGB")
 
-        self.ln(4)
+                    # Escalar respetando aspecto
+                    img_w, img_h = img.size
+                    escala = min(MAX_W / img_w, MAX_H / img_h)
+                    final_w = img_w * escala
+                    final_h = img_h * escala
+
+                    # Centrar dentro de la celda
+                    x_celda = MARGEN_X + col * COL_PASO
+                    x_img   = x_celda + (MAX_W - final_w) / 2
+                    y_img   = y_fila  + (MAX_H - final_h) / 2
+
+                    with archivo_temporal(suffix=".jpg") as tmp_img:
+                        img.save(tmp_img, format="JPEG", quality=90)
+                        self.image(tmp_img, x=x_img, y=y_img, w=final_w, h=final_h)
+
+                    # Pie de foto centrado bajo la celda
+                    self.set_xy(x_celda, y_fila + MAX_H + 1)
+                    self.set_font('Arial', 'I', 7)
+                    self.set_text_color(100, 100, 100)
+                    self.cell(MAX_W, PIE_H - 1, limpiar_texto(f"Foto {foto_num} — {title}"), 0, 0, 'C')
+                    self.set_text_color(0, 0, 0)
+
+                except Exception:
+                    self.set_xy(MARGEN_X + col * COL_PASO, y_fila)
+                    self.set_font('Arial', 'I', 8)
+                    self.cell(MAX_W, MAX_H, limpiar_texto(f"[Error imagen {foto_num}]"), 1, 0, 'C')
+
+            # Avanzar cursor al inicio de la siguiente fila
+            self.set_y(y_fila + FILA_H)
+
+        self.ln(3)
 
     def folio_grid(self, title, photo_files):
         """Una foto del folio por página, centrada y a máximo tamaño."""
