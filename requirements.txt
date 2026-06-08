@@ -3,6 +3,6 @@ pandas
 gspread
 google-auth
 fpdf
-Pillow
-google-generativeai
 pypdf
+pillow
+google-generativeai
