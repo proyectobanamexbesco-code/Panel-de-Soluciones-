@@ -156,8 +156,10 @@ with st.container(border=True):
             if df_preciario.empty:
                 st.warning("El Preciario BESCO está vacío.")
             else:
-                # Extraer columnas de precios (Regiones) dinámicamente
+                # Extraer columnas de precios (Regiones) dinámicamente y filtrar opciones no deseadas
                 columnas_region = [c for c in df_preciario.columns if "PU" in str(c).upper() or "$" in str(c) or "PRECIO" in str(c).upper()]
+                columnas_region = [c for c in columnas_region if "PU METRO NORTE & SUR" not in str(c).upper()]
+                
                 if not columnas_region: columnas_region = ["PRECIO UNITARIO"]
                 
                 col_reg, col_busq = st.columns([1, 2])
