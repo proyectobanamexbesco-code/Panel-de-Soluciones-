@@ -50,6 +50,21 @@ def calcular_utilidad_monto(precio_unitario: float, utilidad_porcentaje: float) 
 def formatear_moneda(valor: float) -> str:
     return f"${float(valor):,.2f}"
 
+def limpiar_texto_pdf(texto):
+    """Limpia caracteres especiales que rompen FPDF (latin-1)"""
+    if not texto:
+        return ""
+    texto = str(texto)
+    # Reemplazar caracteres conflictivos comunes
+    reemplazos = {
+        '•': '-', '“': '"', '”': '"', '‘': "'", '’': "'", 
+        '–': '-', '—': '-', '\u200b': '', '\r': '', '°': ' grados'
+    }
+    for k, v in reemplazos.items():
+        texto = texto.replace(k, v)
+    # Forzar codificación latin-1, reemplazando lo que no sea compatible por '?'
+    return texto.encode('latin-1', 'replace').decode('latin-1')
+
 def obtener_credenciales_gcp():
     if Credentials is None:
         raise RuntimeError("No está instalado google-auth. Agrega 'google-auth' y 'gspread' a requirements.txt.")
@@ -127,7 +142,7 @@ with st.container(border=True):
     with col_p1: cotiza_nombre = st.text_input("Nombre de quien cotiza", value=st.session_state.datos_cotizacion["cotiza_nombre"])
     with col_p2: cotiza_puesto = st.text_input("Puesto", value=st.session_state.datos_cotizacion["cotiza_puesto"])
 
-    # Actualización automática en segundo plano (Reemplaza al botón)
+    # Actualización automática en segundo plano
     st.session_state.datos_cotizacion.update({
         "folio": folio, "fecha": fecha, "cliente_nombre": cliente_nombre, "cliente_empresa": cliente_empresa,
         "cliente_contacto": cliente_contacto, "cliente_telefono": cliente_telefono, "cliente_correo": cliente_correo,
@@ -277,7 +292,7 @@ if st.session_state.conceptos_cotizacion:
             
     st.markdown("---")
     
-    # Lógica de FPDF Integrada
+    # Lógica de FPDF Integrada con limpieza de caracteres
     datos = st.session_state.datos_cotizacion
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime('%d/%m/%Y') if datos["fecha"] else date.today().strftime('%d/%m/%Y')
@@ -290,27 +305,28 @@ if st.session_state.conceptos_cotizacion:
             self.set_font('Arial', 'B', 24)
             self.set_text_color(30, 58, 95)
             self.set_xy(45, 10)
-            self.cell(40, 10, "besco", 0, 0, 'L')
+            self.cell(40, 10, limpiar_texto_pdf("besco"), 0, 0, 'L')
             
             self.set_font('Arial', '', 8)
             self.set_text_color(0, 0, 0)
             self.set_xy(120, 10)
-            self.multi_cell(80, 4, "Grupo Besco SA de CV\nJOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65\nRFC. GBE101207523", 0, 'R')
+            self.multi_cell(80, 4, limpiar_texto_pdf("Grupo Besco SA de CV\nJOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65\nRFC. GBE101207523"), 0, 'R')
             self.ln(10)
             
         def footer(self):
             self.set_y(-45)
             self.set_font('Arial', 'I', 7)
+            # Cambiadas las viñetas por guiones para evitar errores de codificación latin-1
             terminos = (
-                "• TIEMPO DE ENTREGA DE MATERIAL DE 1 A 2 DÍAS HÁBILES.\n"
-                "• TIEMPO DE ENTREGA DEL SERVICIO DE 1 A 2 DÍAS HÁBILES.\n"
-                "• SE REQUIERE ORDEN DE COMPRA, PEDIDO, O CONTRATO.\n"
-                "• PAGO CONTRA ENTREGA DEL SERVICIO.\n"
-                "• VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
-                "• EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS.\n"
-                "• LOS TRABAJOS SE EJECUTARÁN EN HORARIO HÁBIL, EN CASO DE QUE SE REQUIERA FUERA DEL MISMO SE TENDRÁ VARIACIÓN EN EL COSTO 35%"
+                "- TIEMPO DE ENTREGA DE MATERIAL DE 1 A 2 DÍAS HÁBILES.\n"
+                "- TIEMPO DE ENTREGA DEL SERVICIO DE 1 A 2 DÍAS HÁBILES.\n"
+                "- SE REQUIERE ORDEN DE COMPRA, PEDIDO, O CONTRATO.\n"
+                "- PAGO CONTRA ENTREGA DEL SERVICIO.\n"
+                "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+                "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS.\n"
+                "- LOS TRABAJOS SE EJECUTARÁN EN HORARIO HÁBIL, EN CASO DE QUE SE REQUIERA FUERA DEL MISMO SE TENDRÁ VARIACIÓN EN EL COSTO 35%"
             )
-            self.multi_cell(0, 4, terminos, 0, 'L')
+            self.multi_cell(0, 4, limpiar_texto_pdf(terminos), 0, 'L')
 
     # Instanciar y construir PDF
     pdf = PDFCotizacion()
@@ -318,52 +334,52 @@ if st.session_state.conceptos_cotizacion:
     
     # Bloque de Información del Cliente
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(35, 5, "CLIENTE:", 0, 0, 'R')
+    pdf.cell(35, 5, limpiar_texto_pdf("CLIENTE:"), 0, 0, 'R')
     pdf.set_font('Arial', '', 9)
-    pdf.cell(80, 5, datos["cliente_nombre"].upper(), 0, 0, 'L')
+    pdf.cell(80, 5, limpiar_texto_pdf(datos["cliente_nombre"].upper()), 0, 0, 'L')
     
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(45, 5, "FECHA DE COTIZACION:", 0, 0, 'R')
+    pdf.cell(45, 5, limpiar_texto_pdf("FECHA DE COTIZACION:"), 0, 0, 'R')
     pdf.set_font('Arial', '', 9)
-    pdf.cell(30, 5, fecha_pdf, 0, 1, 'L')
+    pdf.cell(30, 5, limpiar_texto_pdf(fecha_pdf), 0, 1, 'L')
     
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(35, 5, "EMPRESA:", 0, 0, 'R')
+    pdf.cell(35, 5, limpiar_texto_pdf("EMPRESA:"), 0, 0, 'R')
     pdf.set_font('Arial', '', 9)
-    pdf.cell(80, 5, datos["cliente_empresa"].upper(), 0, 0, 'L')
+    pdf.cell(80, 5, limpiar_texto_pdf(datos["cliente_empresa"].upper()), 0, 0, 'L')
     
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(45, 5, "FECHA VIGENCIA:", 0, 0, 'R')
+    pdf.cell(45, 5, limpiar_texto_pdf("FECHA VIGENCIA:"), 0, 0, 'R')
     pdf.set_font('Arial', '', 9)
-    pdf.cell(30, 5, "15 DIAS HABILES", 0, 1, 'L')
+    pdf.cell(30, 5, limpiar_texto_pdf("15 DIAS HABILES"), 0, 1, 'L')
     
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(35, 5, "FOLIO BESCO:", 0, 0, 'R')
+    pdf.cell(35, 5, limpiar_texto_pdf("FOLIO BESCO:"), 0, 0, 'R')
     pdf.set_font('Arial', 'B', 9)
     pdf.set_text_color(18, 52, 86)
-    pdf.cell(80, 5, folio_pdf, 0, 1, 'L')
+    pdf.cell(80, 5, limpiar_texto_pdf(folio_pdf), 0, 1, 'L')
     pdf.set_text_color(0, 0, 0)
     
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(35, 5, "ATENCION:", 0, 0, 'R')
+    pdf.cell(35, 5, limpiar_texto_pdf("ATENCION:"), 0, 0, 'R')
     pdf.set_font('Arial', '', 9)
-    pdf.cell(80, 5, datos["cliente_contacto"].upper(), 0, 1, 'L')
+    pdf.cell(80, 5, limpiar_texto_pdf(datos["cliente_contacto"].upper()), 0, 1, 'L')
     pdf.ln(8)
     
     # Introducción
     pdf.set_font('Arial', '', 9)
-    pdf.cell(0, 5, "Por medio de la presente y a nombre de Grupo Besco SA de CV, presento la siguiente cotizacion:", 0, 1, 'L')
+    pdf.cell(0, 5, limpiar_texto_pdf("Por medio de la presente y a nombre de Grupo Besco SA de CV, presento la siguiente cotizacion:"), 0, 1, 'L')
     pdf.ln(4)
     
     # Encabezado de Tabla
     pdf.set_fill_color(153, 194, 255)
     pdf.set_font('Arial', 'B', 8)
-    pdf.cell(30, 8, "CODIGO", 1, 0, 'C', fill=True)
-    pdf.cell(80, 8, "CONCEPTO", 1, 0, 'C', fill=True)
-    pdf.cell(15, 8, "UNIDAD", 1, 0, 'C', fill=True)
-    pdf.cell(20, 8, "CANTIDAD", 1, 0, 'C', fill=True)
-    pdf.cell(20, 8, "PU", 1, 0, 'C', fill=True)
-    pdf.cell(25, 8, "IMPORTE", 1, 1, 'C', fill=True)
+    pdf.cell(30, 8, limpiar_texto_pdf("CODIGO"), 1, 0, 'C', fill=True)
+    pdf.cell(80, 8, limpiar_texto_pdf("CONCEPTO"), 1, 0, 'C', fill=True)
+    pdf.cell(15, 8, limpiar_texto_pdf("UNIDAD"), 1, 0, 'C', fill=True)
+    pdf.cell(20, 8, limpiar_texto_pdf("CANTIDAD"), 1, 0, 'C', fill=True)
+    pdf.cell(20, 8, limpiar_texto_pdf("PU"), 1, 0, 'C', fill=True)
+    pdf.cell(25, 8, limpiar_texto_pdf("IMPORTE"), 1, 1, 'C', fill=True)
     
     pdf.set_font('Arial', '', 8)
     
@@ -376,35 +392,35 @@ if st.session_state.conceptos_cotizacion:
         y_start = pdf.get_y()
         
         pdf.set_xy(x_start + 30, y_start)
-        pdf.multi_cell(80, 5, c['Concepto'], 0, 'L')
+        pdf.multi_cell(80, 5, limpiar_texto_pdf(c['Concepto']), 0, 'L')
         max_y = pdf.get_y()
         h = max_y - y_start if max_y - y_start > 8 else 8
         
         pdf.set_xy(x_start, y_start)
-        pdf.cell(30, h, str(c['Item']), 1, 0, 'C')
+        pdf.cell(30, h, limpiar_texto_pdf(c['Item']), 1, 0, 'C')
         pdf.set_xy(x_start + 30, y_start)
         pdf.cell(80, h, "", 1, 0)
         pdf.set_xy(x_start + 110, y_start)
-        pdf.cell(15, h, str(c['Unidad']), 1, 0, 'C')
-        pdf.cell(20, h, f"{c['Cantidad']:.2f}", 1, 0, 'C')
-        pdf.cell(20, h, f"$ {c['Precio Venta']:,.2f}", 1, 0, 'R')
-        pdf.cell(25, h, f"$ {c['Importe']:,.2f}", 1, 1, 'R')
+        pdf.cell(15, h, limpiar_texto_pdf(c['Unidad']), 1, 0, 'C')
+        pdf.cell(20, h, limpiar_texto_pdf(f"{c['Cantidad']:.2f}"), 1, 0, 'C')
+        pdf.cell(20, h, limpiar_texto_pdf(f"$ {c['Precio Venta']:,.2f}"), 1, 0, 'R')
+        pdf.cell(25, h, limpiar_texto_pdf(f"$ {c['Importe']:,.2f}"), 1, 1, 'R')
         
         pdf.set_y(y_start + h)
     
     # Totales
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(145, 6, "SUBTOTAL", 0, 0, 'R')
-    pdf.cell(15, 6, "$", 0, 0, 'R')
-    pdf.cell(30, 6, f"{subtotal:,.2f}", 0, 1, 'R')
+    pdf.cell(145, 6, limpiar_texto_pdf("SUBTOTAL"), 0, 0, 'R')
+    pdf.cell(15, 6, limpiar_texto_pdf("$"), 0, 0, 'R')
+    pdf.cell(30, 6, limpiar_texto_pdf(f"{subtotal:,.2f}"), 0, 1, 'R')
     
-    pdf.cell(145, 6, "IVA 16%", 0, 0, 'R')
-    pdf.cell(15, 6, "$", 0, 0, 'R')
-    pdf.cell(30, 6, f"{iva:,.2f}", 0, 1, 'R')
+    pdf.cell(145, 6, limpiar_texto_pdf("IVA 16%"), 0, 0, 'R')
+    pdf.cell(15, 6, limpiar_texto_pdf("$"), 0, 0, 'R')
+    pdf.cell(30, 6, limpiar_texto_pdf(f"{iva:,.2f}"), 0, 1, 'R')
     
-    pdf.cell(145, 6, "TOTAL PRESUPUESTADO", 0, 0, 'R')
-    pdf.cell(15, 6, "$", 0, 0, 'R')
-    pdf.cell(30, 6, f"{total:,.2f}", 0, 1, 'R')
+    pdf.cell(145, 6, limpiar_texto_pdf("TOTAL PRESUPUESTADO"), 0, 0, 'R')
+    pdf.cell(15, 6, limpiar_texto_pdf("$"), 0, 0, 'R')
+    pdf.cell(30, 6, limpiar_texto_pdf(f"{total:,.2f}"), 0, 1, 'R')
     
     # Firma Integrada
     if pdf.get_y() > 210:
@@ -412,14 +428,14 @@ if st.session_state.conceptos_cotizacion:
         
     pdf.ln(20)
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(0, 5, "ATENTAMENTE", 0, 1, 'C')
+    pdf.cell(0, 5, limpiar_texto_pdf("ATENTAMENTE"), 0, 1, 'C')
     pdf.ln(12)
-    pdf.cell(0, 4, "___________________________________", 0, 1, 'C')
+    pdf.cell(0, 4, limpiar_texto_pdf("___________________________________"), 0, 1, 'C')
     pdf.set_font('Arial', '', 9)
-    pdf.cell(0, 5, datos["cotiza_nombre"].strip().upper(), 0, 1, 'C')
-    pdf.cell(0, 5, datos["cotiza_puesto"].upper(), 0, 1, 'C')
+    pdf.cell(0, 5, limpiar_texto_pdf(datos["cotiza_nombre"].strip().upper()), 0, 1, 'C')
+    pdf.cell(0, 5, limpiar_texto_pdf(datos["cotiza_puesto"].upper()), 0, 1, 'C')
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(0, 5, "GRUPO BESCO", 0, 1, 'C')
+    pdf.cell(0, 5, limpiar_texto_pdf("GRUPO BESCO"), 0, 1, 'C')
     
     # Botón de Descarga FPDF
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
