@@ -34,7 +34,7 @@ def inicializar_session_state():
             "folio": "", "fecha": date.today(), "cliente_nombre": "",
             "cliente_empresa": "", "cliente_contacto": "", "cliente_telefono": "",
             "cliente_correo": "", "cotiza_nombre": "", "cotiza_puesto": "",
-            "cotiza_telefono": "", "cotiza_correo": ""
+            "cotiza_telefono": "", "cotiza_correo": "", "nombre_cotizacion": ""
         }
 
 def limpiar_cotizacion():
@@ -55,20 +55,18 @@ def limpiar_texto_pdf(texto):
     if not texto:
         return ""
     texto = str(texto)
-    # Reemplazar caracteres conflictivos comunes
     reemplazos = {
         '•': '-', '“': '"', '”': '"', '‘': "'", '’': "'", 
         '–': '-', '—': '-', '\u200b': '', '\r': '', '°': ' grados'
     }
     for k, v in reemplazos.items():
         texto = texto.replace(k, v)
-    # Forzar codificación latin-1, reemplazando lo que no sea compatible por '?'
     return texto.encode('latin-1', 'replace').decode('latin-1')
 
 def obtener_credenciales_gcp():
     if Credentials is None:
         raise RuntimeError("No está instalado google-auth. Agrega 'google-auth' y 'gspread' a requirements.txt.")
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly", "https://www.googleapis.com/auth/drive.readonly"]
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly", "https://www.googleapis.com/auth/drive"]
     
     if "gcp_service_account" in st.secrets:
         return Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]), scopes=scopes)
@@ -125,9 +123,10 @@ st.title("💰 Cotizaciones")
 st.markdown("## 1. Identificación del cliente y persona que cotiza")
 
 with st.container(border=True):
-    col_g1, col_g2 = st.columns(2)
+    col_g1, col_g2, col_g3 = st.columns(3)
     with col_g1: folio = st.text_input("Folio / OT / TK", value=st.session_state.datos_cotizacion["folio"], placeholder="Ej. COT-001", max_chars=20)
     with col_g2: fecha = st.date_input("Fecha de cotización", value=st.session_state.datos_cotizacion["fecha"])
+    with col_g3: nombre_cotizacion = st.text_input("Nombre de Cotización / Proyecto", value=st.session_state.datos_cotizacion.get("nombre_cotizacion", ""), placeholder="Ej. Reparación de Chiller")
 
     col_c1, col_c2 = st.columns(2)
     with col_c1: cliente_nombre = st.text_input("Nombre del cliente", value=st.session_state.datos_cotizacion["cliente_nombre"])
@@ -146,7 +145,7 @@ with st.container(border=True):
     st.session_state.datos_cotizacion.update({
         "folio": folio, "fecha": fecha, "cliente_nombre": cliente_nombre, "cliente_empresa": cliente_empresa,
         "cliente_contacto": cliente_contacto, "cliente_telefono": cliente_telefono, "cliente_correo": cliente_correo,
-        "cotiza_nombre": cotiza_nombre, "cotiza_puesto": cotiza_puesto
+        "cotiza_nombre": cotiza_nombre, "cotiza_puesto": cotiza_puesto, "nombre_cotizacion": nombre_cotizacion
     })
 
 # ==========================================
@@ -172,7 +171,6 @@ with st.container(border=True):
                 
                 if not columnas_region: columnas_region = ["PRECIO UNITARIO"]
                 
-                # Identificar el índice de la región Centro para ponerlo por defecto
                 centro_idx = 0
                 for i, col in enumerate(columnas_region):
                     if "CENTRO" in str(col).upper():
@@ -292,11 +290,46 @@ if st.session_state.conceptos_cotizacion:
             
     st.markdown("---")
     
-    # Lógica de FPDF Integrada con limpieza de caracteres
     datos = st.session_state.datos_cotizacion
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime('%d/%m/%Y') if datos["fecha"] else date.today().strftime('%d/%m/%Y')
+    nombre_cot = datos.get("nombre_cotizacion", "").strip()
     
+    # -----------------------------------------------------
+    # Lógica de Guardado en Acumulado (Google Sheets)
+    # -----------------------------------------------------
+    if st.button("☁️ Registrar en Acumulado", use_container_width=True):
+        try:
+            with st.spinner("Guardando registro en Google Sheets..."):
+                creds = obtener_credenciales_gcp()
+                gc = gspread.authorize(creds)
+                url = st.secrets.get("PRECIARIO_BESCO_URL", "")
+                sheet = gc.open_by_url(url)
+                
+                try:
+                    ws_acumulado = sheet.worksheet("Acumulado")
+                except gspread.exceptions.WorksheetNotFound:
+                    # Crea la hoja si no existe
+                    ws_acumulado = sheet.add_worksheet(title="Acumulado", rows="100", cols="10")
+                    ws_acumulado.append_row(["FOLIO", "FECHA", "CLIENTE", "EMPRESA / INMUEBLE", "NOMBRE COTIZACION", "TOTAL PRESUPUESTADO", "COTIZADOR"])
+                
+                # Insertar la fila de datos
+                ws_acumulado.append_row([
+                    folio_pdf,
+                    fecha_pdf,
+                    datos["cliente_nombre"],
+                    datos["cliente_empresa"],
+                    nombre_cot,
+                    round(total, 2),
+                    datos["cotiza_nombre"]
+                ])
+            st.success("✅ ¡Cotización registrada exitosamente en la pestaña 'Acumulado'!")
+        except Exception as e:
+            st.error(f"❌ Error al intentar guardar en el Acumulado: {e}")
+
+    # -----------------------------------------------------
+    # Lógica de FPDF Integrada con limpieza de caracteres
+    # -----------------------------------------------------
     class PDFCotizacion(FPDF):
         def header(self):
             if os.path.exists("logo besco 2026.jpeg"):
@@ -316,7 +349,6 @@ if st.session_state.conceptos_cotizacion:
         def footer(self):
             self.set_y(-45)
             self.set_font('Arial', 'I', 7)
-            # Cambiadas las viñetas por guiones para evitar errores de codificación latin-1
             terminos = (
                 "- TIEMPO DE ENTREGA DE MATERIAL DE 1 A 2 DÍAS HÁBILES.\n"
                 "- TIEMPO DE ENTREGA DEL SERVICIO DE 1 A 2 DÍAS HÁBILES.\n"
@@ -328,7 +360,6 @@ if st.session_state.conceptos_cotizacion:
             )
             self.multi_cell(0, 4, limpiar_texto_pdf(terminos), 0, 'L')
 
-    # Instanciar y construir PDF
     pdf = PDFCotizacion()
     pdf.add_page()
     
@@ -364,12 +395,19 @@ if st.session_state.conceptos_cotizacion:
     pdf.cell(35, 5, limpiar_texto_pdf("ATENCION:"), 0, 0, 'R')
     pdf.set_font('Arial', '', 9)
     pdf.cell(80, 5, limpiar_texto_pdf(datos["cliente_contacto"].upper()), 0, 1, 'L')
-    pdf.ln(8)
+    pdf.ln(6)
     
-    # Introducción
+    # Introducción y Título (Nombre de Cotización)
     pdf.set_font('Arial', '', 9)
     pdf.cell(0, 5, limpiar_texto_pdf("Por medio de la presente y a nombre de Grupo Besco SA de CV, presento la siguiente cotizacion:"), 0, 1, 'L')
-    pdf.ln(4)
+    pdf.ln(2)
+    
+    if nombre_cot:
+        pdf.set_font('Arial', 'BI', 11)
+        pdf.cell(0, 5, limpiar_texto_pdf(nombre_cot.upper()), 0, 1, 'C')
+        pdf.ln(4)
+    else:
+        pdf.ln(2)
     
     # Encabezado de Tabla
     pdf.set_fill_color(153, 194, 255)
@@ -440,10 +478,14 @@ if st.session_state.conceptos_cotizacion:
     # Botón de Descarga FPDF
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
     
+    # Limpiamos el nombre del archivo para que no tenga espacios ni caracteres raros
+    nombre_archivo_seguro = "".join([c for c in nombre_cot if c.isalnum() or c in " -_"]).replace(" ", "_")
+    nombre_archivo = f"Cotizacion_{folio_pdf}_{nombre_archivo_seguro}.pdf" if nombre_archivo_seguro else f"Cotizacion_{folio_pdf}.pdf"
+    
     st.download_button(
         label="📥 Descargar Cotización en PDF",
         data=pdf_bytes,
-        file_name=f"Cotizacion_{folio_pdf}.pdf",
+        file_name=nombre_archivo,
         mime="application/pdf",
         type="primary",
         use_container_width=True
