@@ -111,7 +111,7 @@ st.markdown("## 1. Identificación del cliente y persona que cotiza")
 
 with st.container(border=True):
     col_g1, col_g2 = st.columns(2)
-    with col_g1: folio = st.text_input("Folio de cotización", value=st.session_state.datos_cotizacion["folio"], placeholder="Ej. COT-001")
+    with col_g1: folio = st.text_input("Folio / OT / TK", value=st.session_state.datos_cotizacion["folio"], placeholder="Ej. COT-001", max_chars=20)
     with col_g2: fecha = st.date_input("Fecha de cotización", value=st.session_state.datos_cotizacion["fecha"])
 
     col_c1, col_c2 = st.columns(2)
@@ -127,13 +127,12 @@ with st.container(border=True):
     with col_p1: cotiza_nombre = st.text_input("Nombre de quien cotiza", value=st.session_state.datos_cotizacion["cotiza_nombre"])
     with col_p2: cotiza_puesto = st.text_input("Puesto", value=st.session_state.datos_cotizacion["cotiza_puesto"])
 
-    if st.button("💾 Guardar datos de identificación", use_container_width=True):
-        st.session_state.datos_cotizacion.update({
-            "folio": folio, "fecha": fecha, "cliente_nombre": cliente_nombre, "cliente_empresa": cliente_empresa,
-            "cliente_contacto": cliente_contacto, "cliente_telefono": cliente_telefono, "cliente_correo": cliente_correo,
-            "cotiza_nombre": cotiza_nombre, "cotiza_puesto": cotiza_puesto
-        })
-        st.success("Datos guardados.")
+    # Actualización automática en segundo plano (Reemplaza al botón)
+    st.session_state.datos_cotizacion.update({
+        "folio": folio, "fecha": fecha, "cliente_nombre": cliente_nombre, "cliente_empresa": cliente_empresa,
+        "cliente_contacto": cliente_contacto, "cliente_telefono": cliente_telefono, "cliente_correo": cliente_correo,
+        "cotiza_nombre": cotiza_nombre, "cotiza_puesto": cotiza_puesto
+    })
 
 # ==========================================
 # SECCIÓN 2: CONCEPTO A COTIZAR
@@ -158,9 +157,16 @@ with st.container(border=True):
                 
                 if not columnas_region: columnas_region = ["PRECIO UNITARIO"]
                 
+                # Identificar el índice de la región Centro para ponerlo por defecto
+                centro_idx = 0
+                for i, col in enumerate(columnas_region):
+                    if "CENTRO" in str(col).upper():
+                        centro_idx = i
+                        break
+                
                 col_reg, col_busq = st.columns([1, 2])
                 with col_reg:
-                    region_seleccionada = st.selectbox("📍 Región de Tarifas", options=columnas_region)
+                    region_seleccionada = st.selectbox("📍 Región de Tarifas", options=columnas_region, index=centro_idx)
                 with col_busq:
                     busqueda = st.text_input("🔍 Buscador (escribe clave o concepto):").strip().lower()
                 
