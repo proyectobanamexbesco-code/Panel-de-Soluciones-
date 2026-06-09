@@ -85,6 +85,9 @@ def init_session_state():
     if "usar_preciario_besco" not in st.session_state:
         st.session_state.usar_preciario_besco = True
 
+    if "toggle_preciario_besco" not in st.session_state:
+        st.session_state.toggle_preciario_besco = st.session_state.usar_preciario_besco
+
     if "datos_cotizacion" not in st.session_state:
         st.session_state.datos_cotizacion = get_default_datos_cotizacion()
 
@@ -249,6 +252,11 @@ def obtener_credenciales_gcp():
     ]
 
     info = dict(st.secrets["gcp_service_account"])
+
+    # Normaliza la llave privada por si viene con \\n en lugar de saltos reales
+    if "private_key" in info and isinstance(info["private_key"], str):
+        info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
+
     return Credentials.from_service_account_info(info, scopes=scopes)
 
 
@@ -667,7 +675,7 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
 
 
 # =========================================================
-# UI - SECCIÓN 1
+# UI - IDENTIFICACIÓN
 # =========================================================
 def render_seccion_identificacion():
     st.markdown("## 1. Identificación del cliente y persona que cotiza")
@@ -739,15 +747,16 @@ def render_seccion_identificacion():
 
 
 # =========================================================
-# UI - SECCIÓN 2
+# UI - CAPTURA DE CONCEPTOS
 # =========================================================
 def render_selector_preciario():
     st.markdown("## 2. Captura de Conceptos")
 
     with st.container(border=True):
-        st.toggle(
+        usar_preciario_besco = st.toggle(
             "Habilitar Preciario BESCO",
-            key="usar_preciario_besco",
+            value=st.session_state.toggle_preciario_besco,
+            key="toggle_preciario_besco",
             help="Activa esta opción para seleccionar conceptos directamente del Preciario BESCO.",
         )
 
@@ -758,7 +767,7 @@ def render_selector_preciario():
         unidad = "PZA"
         precio_unitario = DEFAULT_PRECIO
 
-        if st.session_state.usar_preciario_besco:
+        if usar_preciario_besco:
             origen_concepto = "Preciario BESCO"
 
             try:
@@ -766,14 +775,16 @@ def render_selector_preciario():
 
                 if df_preciario.empty:
                     st.warning("El Preciario BESCO está vacío.")
+                    usar_preciario_besco = False
                 else:
                     columnas_region = detectar_columnas_region(df_preciario)
 
                     if not columnas_region:
                         st.warning(
                             "No se detectaron columnas de precio o región en el Preciario BESCO. "
-                            "Puedes usar captura manual o revisar el archivo."
+                            "Se habilitará captura manual."
                         )
+                        usar_preciario_besco = False
                     else:
                         centro_idx = 0
                         for i, col in enumerate(columnas_region):
@@ -851,11 +862,19 @@ def render_selector_preciario():
                             )
 
             except Exception as e:
-                st.error(f"Error al cargar el Preciario BESCO: {e}")
-                st.info("Se habilitará automáticamente el modo de captura manual.")
-                st.session_state.usar_preciario_besco = False
+                error_texto = str(e)
+                if "PEM" in error_texto or "MalformedFraming" in error_texto:
+                    st.error(
+                        "Error al cargar el Preciario BESCO: la llave privada de Google no tiene un formato válido. "
+                        "Revisa el valor private_key en secrets.toml y asegúrate de conservar correctamente los saltos de línea."
+                    )
+                else:
+                    st.error(f"Error al cargar el Preciario BESCO: {e}")
 
-        if not st.session_state.usar_preciario_besco:
+                st.info("Se habilitará automáticamente el modo de captura manual.")
+                usar_preciario_besco = False
+
+        if not usar_preciario_besco:
             st.info("Modo de captura manual habilitado.")
 
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -936,7 +955,7 @@ def render_selector_preciario():
 
 
 # =========================================================
-# UI - SECCIÓN 3
+# UI - RESUMEN Y PDF
 # =========================================================
 def render_resumen_y_documento():
     st.markdown("## 3. Resumen y Documento Final")
