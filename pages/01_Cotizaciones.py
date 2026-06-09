@@ -1,7 +1,6 @@
 import os
 import re
 from datetime import date
-from typing import Dict, List, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -62,7 +61,7 @@ REGION_EXCLUDE_KEYWORDS = ["METRO NORTE"]
 # =========================================================
 # ESTADO
 # =========================================================
-def get_default_datos_cotizacion() -> Dict:
+def get_default_datos_cotizacion():
     return {
         "folio": "",
         "fecha": date.today(),
@@ -79,7 +78,7 @@ def get_default_datos_cotizacion() -> Dict:
     }
 
 
-def init_session_state() -> None:
+def init_session_state():
     if "conceptos_cotizacion" not in st.session_state:
         st.session_state.conceptos_cotizacion = []
 
@@ -96,7 +95,7 @@ def init_session_state() -> None:
         st.session_state.mensaje_error = ""
 
 
-def reset_cotizacion() -> None:
+def reset_cotizacion():
     st.session_state.conceptos_cotizacion = []
     st.session_state.datos_cotizacion = get_default_datos_cotizacion()
     st.session_state.mensaje_exito = ""
@@ -106,11 +105,11 @@ def reset_cotizacion() -> None:
 # =========================================================
 # HELPERS GENERALES
 # =========================================================
-def formatear_moneda(valor: float) -> str:
+def formatear_moneda(valor):
     return f"${float(valor):,.2f}"
 
 
-def parse_float(value, default: float = 0.0) -> float:
+def parse_float(value, default=0.0):
     if value is None:
         return default
 
@@ -138,11 +137,12 @@ def parse_float(value, default: float = 0.0) -> float:
         return default
 
 
-def limpiar_texto_pdf(texto: str) -> str:
+def limpiar_texto_pdf(texto):
     if not texto:
         return ""
 
     texto = str(texto)
+
     reemplazos = {
         "•": "-",
         "“": '"',
@@ -162,22 +162,22 @@ def limpiar_texto_pdf(texto: str) -> str:
     return texto.encode("latin-1", "replace").decode("latin-1")
 
 
-def sanitize_filename(texto: str) -> str:
+def sanitize_filename(texto):
     if not texto:
         return ""
     texto = "".join(c for c in texto if c.isalnum() or c in " -_")
     return texto.strip().replace(" ", "_")
 
 
-def calcular_precio_venta(precio_unitario: float, utilidad_porcentaje: float) -> float:
+def calcular_precio_venta(precio_unitario, utilidad_porcentaje):
     return round(float(precio_unitario) * (1 + (float(utilidad_porcentaje) / 100)), 2)
 
 
-def calcular_utilidad_monto(precio_unitario: float, utilidad_porcentaje: float) -> float:
+def calcular_utilidad_monto(precio_unitario, utilidad_porcentaje):
     return round(float(precio_unitario) * (float(utilidad_porcentaje) / 100), 2)
 
 
-def calcular_totales(conceptos: List[Dict]) -> Tuple[float, float, float]:
+def calcular_totales(conceptos):
     if not conceptos:
         return 0.0, 0.0, 0.0
 
@@ -191,8 +191,8 @@ def calcular_totales(conceptos: List[Dict]) -> Tuple[float, float, float]:
 # =========================================================
 # VALIDACIONES
 # =========================================================
-def validar_datos_cotizacion(datos: Dict) -> List[str]:
-    errores: List[str] = []
+def validar_datos_cotizacion(datos):
+    errores = []
 
     if not str(datos.get("folio", "")).strip():
         errores.append("Captura el folio / OT / TK.")
@@ -210,13 +210,8 @@ def validar_datos_cotizacion(datos: Dict) -> List[str]:
     return errores
 
 
-def validar_concepto(
-    descripcion: str,
-    unidad: str,
-    cantidad: float,
-    precio_unitario: float,
-) -> List[str]:
-    errores: List[str] = []
+def validar_concepto(descripcion, unidad, cantidad, precio_unitario):
+    errores = []
 
     if not str(descripcion).strip():
         errores.append("Debes capturar o seleccionar la descripción del concepto.")
@@ -233,7 +228,7 @@ def validar_concepto(
 # =========================================================
 # GOOGLE SHEETS
 # =========================================================
-def validar_dependencias_google() -> None:
+def validar_dependencias_google():
     if gspread is None or Credentials is None:
         raise RuntimeError(
             "Faltan dependencias. Agrega en requirements.txt: gspread y google-auth"
@@ -265,9 +260,9 @@ def obtener_cliente_gspread():
 def abrir_spreadsheet_preciario():
     gc = obtener_cliente_gspread()
 
-    preciario_url = st.secrets.get("PRECIARIO_BESCO_URL", "").strip()
-    preciario_key = st.secrets.get("PRECIARIO_BESCO_KEY", "").strip()
-    preciario_title = st.secrets.get("PRECIARIO_BESCO_TITLE", "Preciario Besco").strip()
+    preciario_url = str(st.secrets.get("PRECIARIO_BESCO_URL", "")).strip()
+    preciario_key = str(st.secrets.get("PRECIARIO_BESCO_KEY", "")).strip()
+    preciario_title = str(st.secrets.get("PRECIARIO_BESCO_TITLE", "Preciario Besco")).strip()
 
     if preciario_url:
         return gc.open_by_url(preciario_url)
@@ -278,11 +273,11 @@ def abrir_spreadsheet_preciario():
     return gc.open(preciario_title)
 
 
-def detectar_columnas_base(df: pd.DataFrame) -> Dict[str, str]:
+def detectar_columnas_base(df):
     columnas = [str(c).strip() for c in df.columns]
     columnas_upper = {str(c).strip().upper(): str(c).strip() for c in df.columns}
 
-    def buscar_candidata(candidatas: List[str], default: str = "") -> str:
+    def buscar_candidata(candidatas, default=""):
         for candidata in candidatas:
             if candidata in columnas_upper:
                 return columnas_upper[candidata]
@@ -316,8 +311,8 @@ def detectar_columnas_base(df: pd.DataFrame) -> Dict[str, str]:
     }
 
 
-def detectar_columnas_region(df: pd.DataFrame) -> List[str]:
-    columnas_region: List[str] = []
+def detectar_columnas_region(df):
+    columnas_region = []
 
     for col in df.columns:
         col_up = str(col).strip().upper()
@@ -352,10 +347,10 @@ def detectar_columnas_region(df: pd.DataFrame) -> List[str]:
 
 
 @st.cache_data(show_spinner=False, ttl=300)
-def obtener_preciario_besco() -> pd.DataFrame:
+def obtener_preciario_besco():
     spreadsheet = abrir_spreadsheet_preciario()
 
-    worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "").strip()
+    worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
     if worksheet_name:
         ws = spreadsheet.worksheet(worksheet_name)
     else:
@@ -408,9 +403,9 @@ def obtener_preciario_besco() -> pd.DataFrame:
 def abrir_spreadsheet_historial():
     gc = obtener_cliente_gspread()
 
-    historial_url = st.secrets.get("HISTORIAL_COTIZACIONES_URL", "").strip()
-    historial_key = st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "").strip()
-    historial_title = st.secrets.get("HISTORIAL_COTIZACIONES_TITLE", "Historial Cotizaciones Besco").strip()
+    historial_url = str(st.secrets.get("HISTORIAL_COTIZACIONES_URL", "")).strip()
+    historial_key = str(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "")).strip()
+    historial_title = str(st.secrets.get("HISTORIAL_COTIZACIONES_TITLE", "Historial Cotizaciones Besco")).strip()
 
     if historial_url:
         return gc.open_by_url(historial_url)
@@ -423,11 +418,11 @@ def abrir_spreadsheet_historial():
 
 def obtener_worksheet_historial():
     spreadsheet = abrir_spreadsheet_historial()
-    worksheet_name = st.secrets.get("HISTORIAL_COTIZACIONES_WORKSHEET", "Hoja 1").strip()
+    worksheet_name = str(st.secrets.get("HISTORIAL_COTIZACIONES_WORKSHEET", "Hoja 1")).strip()
 
     try:
         ws = spreadsheet.worksheet(worksheet_name)
-    except gspread.exceptions.WorksheetNotFound:
+    except Exception:
         ws = spreadsheet.add_worksheet(title=worksheet_name, rows="100", cols="10")
         ws.append_row(
             [
@@ -443,7 +438,7 @@ def obtener_worksheet_historial():
     return ws
 
 
-def folio_ya_registrado(ws, folio: str) -> bool:
+def folio_ya_registrado(ws, folio):
     try:
         records = ws.get_all_records()
         if not records:
@@ -458,15 +453,7 @@ def folio_ya_registrado(ws, folio: str) -> bool:
         return False
 
 
-def registrar_en_historial(
-    folio: str,
-    fecha_texto: str,
-    cliente: str,
-    empresa: str,
-    nombre_cot: str,
-    total: float,
-    cotizador: str,
-) -> None:
+def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, total, cotizador):
     try:
         ws = obtener_worksheet_historial()
 
@@ -498,7 +485,7 @@ def registrar_en_historial(
 
 
 # =========================================================
-# PDF CON FPDF
+# PDF
 # =========================================================
 class PDFCotizacion(FPDF):
     def header(self):
@@ -544,13 +531,7 @@ class PDFCotizacion(FPDF):
         self.multi_cell(0, 4, limpiar_texto_pdf(terminos), 0, "L")
 
 
-def generar_pdf_cotizacion(
-    datos: Dict,
-    conceptos: List[Dict],
-    subtotal: float,
-    iva: float,
-    total: float,
-) -> bytes:
+def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
     pdf = PDFCotizacion()
     pdf.add_page()
 
@@ -688,7 +669,7 @@ def generar_pdf_cotizacion(
 # =========================================================
 # UI - SECCIÓN 1
 # =========================================================
-def render_seccion_identificacion() -> None:
+def render_seccion_identificacion():
     st.markdown("## 1. Identificación del cliente y persona que cotiza")
 
     datos = st.session_state.datos_cotizacion
@@ -760,7 +741,7 @@ def render_seccion_identificacion() -> None:
 # =========================================================
 # UI - SECCIÓN 2
 # =========================================================
-def render_selector_preciario() -> None:
+def render_selector_preciario():
     st.markdown("## 2. Captura de Conceptos")
 
     with st.container(border=True):
@@ -957,7 +938,7 @@ def render_selector_preciario() -> None:
 # =========================================================
 # UI - SECCIÓN 3
 # =========================================================
-def render_resumen_y_documento() -> None:
+def render_resumen_y_documento():
     st.markdown("## 3. Resumen y Documento Final")
 
     if st.session_state.mensaje_exito:
@@ -1051,11 +1032,11 @@ def render_resumen_y_documento() -> None:
 # =========================================================
 # MAIN
 # =========================================================
-def main() -> None:
+def main():
     init_session_state()
 
     st.title("💰 Cotizaciones")
-    st.caption("Genera cotizaciones con captura manual o con Preciario BESCO, y registra el historial automáticamente.")
+    st.caption("Versión corregida de Cotizaciones")
 
     render_seccion_identificacion()
     render_selector_preciario()
@@ -1064,4 +1045,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-``
