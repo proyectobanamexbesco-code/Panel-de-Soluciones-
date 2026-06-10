@@ -57,6 +57,18 @@ MANUAL_UNIDADES = [
 
 REGION_EXCLUDE_KEYWORDS = ["METRO NORTE"]
 
+TABLE_COLS = {
+    "codigo": 28,
+    "concepto": 84,
+    "unidad": 16,
+    "cantidad": 18,
+    "pu": 20,
+    "importe": 24,
+}
+
+TABLE_LINE_HEIGHT = 4.2
+TABLE_MIN_ROW_HEIGHT = 10
+
 
 # =========================================================
 # ESTADO
@@ -120,7 +132,6 @@ def parse_float(value, default=0.0):
         return float(value)
 
     text = str(value).strip()
-
     if text == "":
         return default
 
@@ -131,7 +142,6 @@ def parse_float(value, default=0.0):
         .replace("mxn", "")
         .replace(" ", "")
     )
-
     text = re.sub(r"[^0-9\.\-]", "", text)
 
     try:
@@ -145,7 +155,6 @@ def limpiar_texto_pdf(texto):
         return ""
 
     texto = str(texto)
-
     reemplazos = {
         "•": "-",
         "“": '"',
@@ -253,7 +262,6 @@ def obtener_credenciales_gcp():
 
     info = dict(st.secrets["gcp_service_account"])
 
-    # Normaliza la llave privada por si viene con \\n en lugar de saltos reales
     if "private_key" in info and isinstance(info["private_key"], str):
         info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
 
@@ -350,8 +358,7 @@ def detectar_columnas_region(df):
                 if str(col).strip().upper() == posible:
                     columnas_region.append(col)
 
-    columnas_region = list(dict.fromkeys(columnas_region))
-    return columnas_region
+    return list(dict.fromkeys(columnas_region))
 
 
 @st.cache_data(show_spinner=False, ttl=300)
@@ -360,7 +367,13 @@ def obtener_preciario_besco():
 
     worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
     if worksheet_name:
-        ws = spreadsheet.worksheet(worksheet_name)
+        try:
+            ws = spreadsheet.worksheet(worksheet_name)
+        except Exception:
+            raise RuntimeError(
+                f"No se encontró la pestaña '{worksheet_name}' en el Preciario BESCO. "
+                "Deja PRECIARIO_BESCO_WORKSHEET vacío o captura el nombre exacto de la pestaña."
+            )
     else:
         ws = spreadsheet.get_worksheet(0)
 
@@ -374,7 +387,6 @@ def obtener_preciario_besco():
         return pd.DataFrame()
 
     mapeo = detectar_columnas_base(df_raw)
-
     df = df_raw.copy()
 
     if mapeo["clave"]:
@@ -539,8 +551,108 @@ class PDFCotizacion(FPDF):
         self.multi_cell(0, 4, limpiar_texto_pdf(terminos), 0, "L")
 
 
+def pdf_wrap_lines(pdf, text, width):
+    text = limpiar_texto_pdf(text)
+    if not text:
+        return [""]
+
+    paragraphs = text.split("\n")
+    lines = []
+
+    for paragraph in paragraphs:
+        words = paragraph.split()
+        if not words:
+            lines.append("")
+            continue
+
+        current = words[0]
+        for word in words[1:]:
+            test = current + " " + word
+            if pdf.get_string_width(test) <= max(width - 2, 1):
+                current = test
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
+
+    return lines or [""]
+
+
+def draw_table_header(pdf):
+    pdf.set_fill_color(153, 194, 255)
+    pdf.set_font("Arial", "B", 8)
+    pdf.cell(TABLE_COLS["codigo"], 8, "CODIGO", 1, 0, "C", True)
+    pdf.cell(TABLE_COLS["concepto"], 8, "CONCEPTO", 1, 0, "C", True)
+    pdf.cell(TABLE_COLS["unidad"], 8, "UNIDAD", 1, 0, "C", True)
+    pdf.cell(TABLE_COLS["cantidad"], 8, "CANTIDAD", 1, 0, "C", True)
+    pdf.cell(TABLE_COLS["pu"], 8, "PU", 1, 0, "C", True)
+    pdf.cell(TABLE_COLS["importe"], 8, "IMPORTE", 1, 1, "C", True)
+    pdf.set_font("Arial", "", 8)
+
+
+def draw_table_row(pdf, concepto):
+    lines = pdf_wrap_lines(pdf, concepto["Concepto"], TABLE_COLS["concepto"] - 4)
+    row_height = max(TABLE_MIN_ROW_HEIGHT, len(lines) * TABLE_LINE_HEIGHT + 2)
+
+    if pdf.get_y() + row_height > 238:
+        pdf.add_page()
+        draw_table_header(pdf)
+
+    x = pdf.get_x()
+    y = pdf.get_y()
+
+    widths = [
+        TABLE_COLS["codigo"],
+        TABLE_COLS["concepto"],
+        TABLE_COLS["unidad"],
+        TABLE_COLS["cantidad"],
+        TABLE_COLS["pu"],
+        TABLE_COLS["importe"],
+    ]
+
+    for width in widths:
+        pdf.rect(x, y, width, row_height)
+        x += width
+
+    # Código
+    x_codigo = pdf.l_margin
+    pdf.set_xy(x_codigo, y + (row_height / 2) - 2)
+    pdf.cell(TABLE_COLS["codigo"], 4, limpiar_texto_pdf(str(concepto["Item"])), 0, 0, "C")
+
+    # Concepto
+    x_concepto = pdf.l_margin + TABLE_COLS["codigo"] + 1.5
+    y_text = y + 3.2
+    for line in lines:
+        pdf.set_xy(x_concepto, y_text)
+        pdf.cell(TABLE_COLS["concepto"] - 3, 4, line, 0, 0, "L")
+        y_text += TABLE_LINE_HEIGHT
+
+    # Unidad
+    x_unidad = pdf.l_margin + TABLE_COLS["codigo"] + TABLE_COLS["concepto"]
+    pdf.set_xy(x_unidad, y + (row_height / 2) - 2)
+    pdf.cell(TABLE_COLS["unidad"], 4, limpiar_texto_pdf(str(concepto["Unidad"])), 0, 0, "C")
+
+    # Cantidad
+    x_cantidad = x_unidad + TABLE_COLS["unidad"]
+    pdf.set_xy(x_cantidad, y + (row_height / 2) - 2)
+    pdf.cell(TABLE_COLS["cantidad"], 4, limpiar_texto_pdf(f"{float(concepto['Cantidad']):,.2f}"), 0, 0, "C")
+
+    # PU
+    x_pu = x_cantidad + TABLE_COLS["cantidad"]
+    pdf.set_xy(x_pu, y + (row_height / 2) - 2)
+    pdf.cell(TABLE_COLS["pu"] - 1.5, 4, limpiar_texto_pdf(f"$ {float(concepto['Precio Venta']):,.2f}"), 0, 0, "R")
+
+    # Importe
+    x_importe = x_pu + TABLE_COLS["pu"]
+    pdf.set_xy(x_importe, y + (row_height / 2) - 2)
+    pdf.cell(TABLE_COLS["importe"] - 1.5, 4, limpiar_texto_pdf(f"$ {float(concepto['Importe']):,.2f}"), 0, 0, "R")
+
+    pdf.set_y(y + row_height)
+
+
 def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
-    pdf = PDFCotizacion()
+    pdf = PDFCotizacion("P", "mm", "Letter")
+    pdf.set_auto_page_break(auto=False)
     pdf.add_page()
 
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
@@ -596,54 +708,16 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
         pdf.cell(0, 5, limpiar_texto_pdf(nombre_cot.upper()), 0, 1, "C")
         pdf.ln(4)
 
-    pdf.set_fill_color(153, 194, 255)
-    pdf.set_font("Arial", "B", 8)
-    pdf.cell(30, 8, limpiar_texto_pdf("CODIGO"), 1, 0, "C", fill=True)
-    pdf.cell(80, 8, limpiar_texto_pdf("CONCEPTO"), 1, 0, "C", fill=True)
-    pdf.cell(15, 8, limpiar_texto_pdf("UNIDAD"), 1, 0, "C", fill=True)
-    pdf.cell(20, 8, limpiar_texto_pdf("CANTIDAD"), 1, 0, "C", fill=True)
-    pdf.cell(20, 8, limpiar_texto_pdf("PU"), 1, 0, "C", fill=True)
-    pdf.cell(25, 8, limpiar_texto_pdf("IMPORTE"), 1, 1, "C", fill=True)
-
-    pdf.set_font("Arial", "", 8)
+    draw_table_header(pdf)
 
     for concepto in conceptos:
-        if pdf.get_y() > 240:
-            pdf.add_page()
-            pdf.set_fill_color(153, 194, 255)
-            pdf.set_font("Arial", "B", 8)
-            pdf.cell(30, 8, limpiar_texto_pdf("CODIGO"), 1, 0, "C", fill=True)
-            pdf.cell(80, 8, limpiar_texto_pdf("CONCEPTO"), 1, 0, "C", fill=True)
-            pdf.cell(15, 8, limpiar_texto_pdf("UNIDAD"), 1, 0, "C", fill=True)
-            pdf.cell(20, 8, limpiar_texto_pdf("CANTIDAD"), 1, 0, "C", fill=True)
-            pdf.cell(20, 8, limpiar_texto_pdf("PU"), 1, 0, "C", fill=True)
-            pdf.cell(25, 8, limpiar_texto_pdf("IMPORTE"), 1, 1, "C", fill=True)
-            pdf.set_font("Arial", "", 8)
+        draw_table_row(pdf, concepto)
 
-        x_start = pdf.get_x()
-        y_start = pdf.get_y()
+    # Totales
+    if pdf.get_y() > 225:
+        pdf.add_page()
 
-        pdf.set_xy(x_start + 30, y_start)
-        pdf.multi_cell(80, 5, limpiar_texto_pdf(concepto["Concepto"]), 0, "L")
-        max_y = pdf.get_y()
-        alto = max(max_y - y_start, 8)
-
-        pdf.set_xy(x_start, y_start)
-        pdf.cell(30, alto, limpiar_texto_pdf(str(concepto["Item"])), 1, 0, "C")
-        pdf.set_xy(x_start + 30, y_start)
-        pdf.cell(80, alto, "", 1, 0)
-        pdf.set_xy(x_start + 110, y_start)
-        pdf.cell(15, alto, limpiar_texto_pdf(str(concepto["Unidad"])), 1, 0, "C")
-        pdf.cell(20, alto, limpiar_texto_pdf(f"{float(concepto['Cantidad']):,.2f}"), 1, 0, "C")
-        pdf.cell(20, alto, limpiar_texto_pdf(f"$ {float(concepto['Precio Venta']):,.2f}"), 1, 0, "R")
-        pdf.cell(25, alto, limpiar_texto_pdf(f"$ {float(concepto['Importe']):,.2f}"), 1, 1, "R")
-
-        pdf.set_xy(x_start + 32, y_start + 4)
-        pdf.multi_cell(76, 4, limpiar_texto_pdf(concepto["Concepto"]), 0, "L")
-
-        pdf.set_y(y_start + alto)
-
-    pdf.ln(3)
+    pdf.ln(4)
     pdf.set_font("Arial", "B", 9)
     pdf.cell(145, 6, limpiar_texto_pdf("SUBTOTAL"), 0, 0, "R")
     pdf.cell(15, 6, limpiar_texto_pdf("$"), 0, 0, "R")
@@ -657,10 +731,11 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
     pdf.cell(15, 6, limpiar_texto_pdf("$"), 0, 0, "R")
     pdf.cell(30, 6, limpiar_texto_pdf(f"{total:,.2f}"), 0, 1, "R")
 
-    if pdf.get_y() > 210:
+    # Firma
+    if pdf.get_y() > 205:
         pdf.add_page()
 
-    pdf.ln(20)
+    pdf.ln(18)
     pdf.set_font("Arial", "B", 9)
     pdf.cell(0, 5, limpiar_texto_pdf("ATENTAMENTE"), 0, 1, "C")
     pdf.ln(12)
@@ -768,8 +843,6 @@ def render_selector_preciario():
         precio_unitario = DEFAULT_PRECIO
 
         if usar_preciario_besco:
-            origen_concepto = "Preciario BESCO"
-
             try:
                 df_preciario = obtener_preciario_besco()
 
@@ -781,11 +854,12 @@ def render_selector_preciario():
 
                     if not columnas_region:
                         st.warning(
-                            "No se detectaron columnas de precio o región en el Preciario BESCO. "
-                            "Se habilitará captura manual."
+                            "No se detectaron columnas de precio o región en el Preciario BESCO. Se habilitará captura manual."
                         )
                         usar_preciario_besco = False
                     else:
+                        origen_concepto = "Preciario BESCO"
+
                         centro_idx = 0
                         for i, col in enumerate(columnas_region):
                             if "CENTRO" in str(col).upper():
@@ -862,19 +936,13 @@ def render_selector_preciario():
                             )
 
             except Exception as e:
-                error_texto = str(e)
-                if "PEM" in error_texto or "MalformedFraming" in error_texto:
-                    st.error(
-                        "Error al cargar el Preciario BESCO: la llave privada de Google no tiene un formato válido. "
-                        "Revisa el valor private_key en secrets.toml y asegúrate de conservar correctamente los saltos de línea."
-                    )
-                else:
-                    st.error(f"Error al cargar el Preciario BESCO: {e}")
-
+                st.error(f"Error al cargar el Preciario BESCO: {e}")
                 st.info("Se habilitará automáticamente el modo de captura manual.")
                 usar_preciario_besco = False
+                origen_concepto = "Captura manual"
 
         if not usar_preciario_besco:
+            origen_concepto = "Captura manual"
             st.info("Modo de captura manual habilitado.")
 
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -1001,7 +1069,7 @@ def render_resumen_y_documento():
     errores_cabecera = validar_datos_cotizacion(datos)
 
     if errores_cabecera:
-        st.warning("Antes de registrar y descargar, completa estos datos:")
+        st.warning("Antes de generar el PDF, completa estos datos:")
         for error in errores_cabecera:
             st.write(f"- {error}")
         return
@@ -1028,24 +1096,30 @@ def render_resumen_y_documento():
     else:
         nombre_archivo = f"Cotizacion_{sanitize_filename(folio_pdf)}.pdf"
 
-    st.download_button(
-        label="💾 Registrar y Descargar Cotización",
-        data=pdf_bytes,
-        file_name=nombre_archivo,
-        mime="application/pdf",
-        type="primary",
-        on_click=registrar_en_historial,
-        args=(
-            folio_pdf,
-            fecha_pdf,
-            datos["cliente_nombre"],
-            datos["cliente_empresa"],
-            nombre_cot,
-            total,
-            datos["cotiza_nombre"],
-        ),
-        use_container_width=True,
-    )
+    col_pdf, col_hist = st.columns(2)
+
+    with col_pdf:
+        st.download_button(
+            label="📥 Descargar PDF",
+            data=pdf_bytes,
+            file_name=nombre_archivo,
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True,
+        )
+
+    with col_hist:
+        if st.button("☁️ Registrar en historial", use_container_width=True):
+            registrar_en_historial(
+                folio_pdf,
+                fecha_pdf,
+                datos["cliente_nombre"],
+                datos["cliente_empresa"],
+                nombre_cot,
+                total,
+                datos["cotiza_nombre"],
+            )
+            st.rerun()
 
 
 # =========================================================
