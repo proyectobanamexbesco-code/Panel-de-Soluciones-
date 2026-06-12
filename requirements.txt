@@ -6,3 +6,5 @@ fpdf
 pypdf
 pillow
 google-generativeai
+openpyxl
+reportlab
