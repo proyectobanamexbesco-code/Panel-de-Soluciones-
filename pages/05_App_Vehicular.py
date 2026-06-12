@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import tempfile
-import os
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
@@ -19,8 +18,6 @@ PAGE_TITLE = "App Vehicular"
 PAGE_ICON = "🚗"
 LAYOUT = "wide"
 
-EXCEL_FILE = "CONCENTRADO REGION CENTRO 1.xlsx"
-
 PDF_MARGIN_LEFT = 45
 PDF_MARGIN_RIGHT = 45
 PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT = letter
@@ -34,6 +31,261 @@ st.set_page_config(
     page_icon=PAGE_ICON,
     layout=LAYOUT
 )
+
+
+# =========================================================
+# BASE DE DATOS INTEGRADA DE VEHÍCULOS
+# =========================================================
+VEHICULOS_DATA = [
+    {
+        "Region": "CENTRO",
+        "Oficina": "ACAPULCO",
+        "Placa": "C58BRE",
+        "Modelo": "KWID",
+        "Responsable": "TALLER",
+        "Puesto": "INACTIVO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "ACAPULCO",
+        "Placa": "B98BLR",
+        "Modelo": "KANGOO",
+        "Responsable": "IBARRA BUENAVENTURA LUIS ALBERTO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "ACAPULCO",
+        "Placa": "F56BPX",
+        "Modelo": "KWID",
+        "Responsable": "CINTORA AVALOS FRANCISCO JAVIER",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "ACAPULCO",
+        "Placa": "D89BPX (CHILPANCINGO)",
+        "Modelo": "KWID",
+        "Responsable": "LOPEZ MARCIAL JULIO CESAR",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "F52AJM",
+        "Modelo": "GRAND-I-10",
+        "Responsable": "RAMIREZ GARCIA RICARDO ALEJANDRO",
+        "Puesto": "GERENTE DE SERVICIOS",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RCN697D",
+        "Modelo": "KWID",
+        "Responsable": "MANZO RAMIREZ CHRISTIAN",
+        "Puesto": "GERENTE DE SERVICIOS",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RDD750D",
+        "Modelo": "KWID",
+        "Responsable": "ESPINOSA JIMENEZ CLAUDIA IVETTE",
+        "Puesto": "GERENTE DE SERVICIOS",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RCN688D",
+        "Modelo": "KWID",
+        "Responsable": "GOMEZ SANCHEZ DANTE",
+        "Puesto": "SUPERVISOR",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RCN939D",
+        "Modelo": "KWID",
+        "Responsable": "OROPEZA OLGUIN JUAN CARLOS",
+        "Puesto": "SUPERVISOR",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RDD843D",
+        "Modelo": "KWID",
+        "Responsable": "MAYAGOITIA ANDRES ARTURO",
+        "Puesto": "SUPERVISOR",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "A60BPC",
+        "Modelo": "TORNADO",
+        "Responsable": "TECATE QUIÑONES FRANCISCO MANUEL",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "C20BRE",
+        "Modelo": "KANGOO",
+        "Responsable": "LOPEZ GONZALEZ MOISES",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "PAZ868C",
+        "Modelo": "KANGOO",
+        "Responsable": "MORENO ORIHUELA HERIBERTO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "D27BPX",
+        "Modelo": "KWID",
+        "Responsable": "RENDON VARGAS JOSE MANUEL",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RDD779D",
+        "Modelo": "KWID",
+        "Responsable": "DE LABRA GARCIA ROMAN (PRESTAMO)",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "RDD838D",
+        "Modelo": "KWID",
+        "Responsable": "FLORES PALMA JUAN FERNANDO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "U68BPB",
+        "Modelo": "TORNADO",
+        "Responsable": "SALVADOR OJEDA HERNANDEZ",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "V42BPB",
+        "Modelo": "TORNADO",
+        "Responsable": "TALLER",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "CDMX",
+        "Placa": "C98BRE",
+        "Modelo": "KWID",
+        "Responsable": "RAMOS LOPEZ RODOLFO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "MORELIA",
+        "Placa": "C79BRE",
+        "Modelo": "KWID",
+        "Responsable": "SIN RESPONSIVA",
+        "Puesto": "SIN RESPONSIVA",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "MORELIA",
+        "Placa": "B45BLR",
+        "Modelo": "KWID",
+        "Responsable": "ZAMANO FARIAS JAVIER",
+        "Puesto": "SUPERVISOR",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "MORELIA",
+        "Placa": "C09BRE",
+        "Modelo": "KWID",
+        "Responsable": "AVALOS AYALA VICTOR HUGO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "MORELIA",
+        "Placa": "C16BRE",
+        "Modelo": "KANGOO",
+        "Responsable": "RUEDA LOPEZ OSCAR VINICIO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "MORELIA (URUAPAN)",
+        "Placa": "C53BRE",
+        "Modelo": "KWID",
+        "Responsable": "MARTIN GARIBAY ROMERO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "MORELIA (ZAMORA)",
+        "Placa": "F47BPX",
+        "Modelo": "KANGOO",
+        "Responsable": "PEREZ GARCIA JUAN GERARDO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "PACHUCA",
+        "Placa": "RCN938D",
+        "Modelo": "KWID",
+        "Responsable": "SIN RESPONSIVA",
+        "Puesto": "SIN RESPONSIVA",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "PACHUCA",
+        "Placa": "C92BRE",
+        "Modelo": "KANGOO",
+        "Responsable": "ROJAS PEREZ GUILLERMO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "TOLUCA",
+        "Placa": "RCN698D",
+        "Modelo": "KWID",
+        "Responsable": "POLICARPIO ROSALINO FRANCISCO",
+        "Puesto": "JEFE DE OFICINA",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "TOLUCA",
+        "Placa": "NZ8860A",
+        "Modelo": "TORNADO",
+        "Responsable": "SANCHEZ DESALES EDUARDO",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "TOLUCA",
+        "Placa": "NZ8862A",
+        "Modelo": "TORNADO",
+        "Responsable": "GARCIA VERA CRUZ MARTIN",
+        "Puesto": "TECNICO",
+    },
+    {
+        "Region": "CENTRO",
+        "Oficina": "TOLUCA",
+        "Placa": "RCN684D",
+        "Modelo": "KWID",
+        "Responsable": "TOLENTINO MUNGUIA OSCAR",
+        "Puesto": "TECNICO",
+    },
+]
 
 
 # =========================================================
@@ -83,11 +335,6 @@ def aplicar_estilos() -> None:
             margin-bottom: 0.7rem;
         }
 
-        .required-label {
-            color: #B42318;
-            font-weight: 700;
-        }
-
         .ok-box {
             background-color: #E3FCEF;
             border: 1px solid #B7E4C7;
@@ -123,36 +370,7 @@ def aplicar_estilos() -> None:
 # =========================================================
 @st.cache_data
 def cargar_datos_vehiculos() -> pd.DataFrame:
-    """
-    Carga el archivo Excel de vehículos.
-    El archivo debe estar en la raíz del repositorio:
-    CONCENTRADO REGION CENTRO 1.xlsx
-    """
-
-    if not os.path.exists(EXCEL_FILE):
-        st.error(
-            f"No se encontró el archivo: {EXCEL_FILE}. "
-            "Verifica que esté en la raíz del repositorio."
-        )
-        st.stop()
-
-    df = pd.read_excel(EXCEL_FILE, engine="openpyxl")
-
-    # Normalizar nombres de columnas
-    df.columns = [str(col).strip().upper() for col in df.columns]
-
-    posibles_columnas = {
-        "REGION": "Region",
-        "OFICINA": "Oficina",
-        "OFICINA ": "Oficina",
-        "PLACA": "Placa",
-        "MODELO": "Modelo",
-        "REPONSABLE ACTUAL": "Responsable",
-        "RESPONSABLE ACTUAL": "Responsable",
-        "PUESTO": "Puesto",
-    }
-
-    df = df.rename(columns=posibles_columnas)
+    df = pd.DataFrame(VEHICULOS_DATA)
 
     columnas_necesarias = [
         "Region",
@@ -163,27 +381,10 @@ def cargar_datos_vehiculos() -> pd.DataFrame:
         "Puesto",
     ]
 
-    columnas_faltantes = [
-        col for col in columnas_necesarias if col not in df.columns
-    ]
+    for columna in columnas_necesarias:
+        df[columna] = df[columna].fillna("").astype(str).str.strip()
 
-    if columnas_faltantes:
-        st.error(
-            "El archivo Excel no contiene las columnas necesarias: "
-            + ", ".join(columnas_faltantes)
-        )
-        st.stop()
-
-    df = df[columnas_necesarias].copy()
-
-    for col in columnas_necesarias:
-        df[col] = df[col].fillna("").astype(str).str.strip()
-
-    df = df[df["Placa"] != ""]
-
-    if df.empty:
-        st.error("El archivo Excel no contiene placas válidas.")
-        st.stop()
+    df = df[df["Placa"] != ""].copy()
 
     return df
 
@@ -191,11 +392,25 @@ def cargar_datos_vehiculos() -> pd.DataFrame:
 # =========================================================
 # UTILIDADES DE PDF
 # =========================================================
-def dibujar_encabezado_pdf(c: canvas.Canvas, titulo: str) -> int:
-    """
-    Dibuja encabezado del PDF y devuelve la posición Y siguiente.
-    """
+def dividir_texto(texto: str, max_chars: int = 90) -> list:
+    palabras = texto.split()
+    lineas = []
+    linea_actual = ""
 
+    for palabra in palabras:
+        if len(linea_actual) + len(palabra) + 1 <= max_chars:
+            linea_actual += " " + palabra if linea_actual else palabra
+        else:
+            lineas.append(linea_actual)
+            linea_actual = palabra
+
+    if linea_actual:
+        lineas.append(linea_actual)
+
+    return lineas
+
+
+def dibujar_encabezado_pdf(c: canvas.Canvas, titulo: str) -> int:
     y = 750
 
     c.setFillColor(colors.HexColor("#1E3A5F"))
@@ -222,11 +437,11 @@ def dibujar_encabezado_pdf(c: canvas.Canvas, titulo: str) -> int:
     return y
 
 
-def nueva_pagina_si_necesaria(c: canvas.Canvas, y: int, espacio_requerido: int = 120) -> int:
-    """
-    Si no hay espacio suficiente, crea nueva página.
-    """
-
+def nueva_pagina_si_necesaria(
+    c: canvas.Canvas,
+    y: int,
+    espacio_requerido: int = 120
+) -> int:
     if y < espacio_requerido:
         c.showPage()
         y = dibujar_encabezado_pdf(c, "REPORTE VEHICULAR - CONTINUACIÓN")
@@ -234,28 +449,24 @@ def nueva_pagina_si_necesaria(c: canvas.Canvas, y: int, espacio_requerido: int =
     return y
 
 
-def escribir_linea_pdf(c: canvas.Canvas, etiqueta: str, valor: str, y: int) -> int:
-    """
-    Escribe una línea etiqueta/valor en PDF.
-    """
-
+def escribir_linea_pdf(
+    c: canvas.Canvas,
+    etiqueta: str,
+    valor: str,
+    y: int
+) -> int:
     c.setFont("Helvetica-Bold", 10)
     c.setFillColor(colors.HexColor("#1E3A5F"))
     c.drawString(PDF_MARGIN_LEFT, y, f"{etiqueta}:")
 
     c.setFont("Helvetica", 10)
     c.setFillColor(colors.black)
-    c.drawString(PDF_MARGIN_LEFT + 110, y, str(valor))
+    c.drawString(PDF_MARGIN_LEFT + 120, y, str(valor))
 
     return y - 16
 
 
 def guardar_imagen_temporal(uploaded_file) -> str:
-    """
-    Guarda una imagen subida por Streamlit en archivo temporal.
-    Convierte a RGB para evitar errores con PNG transparentes.
-    """
-
     image = Image.open(uploaded_file)
 
     if image.mode in ("RGBA", "P"):
@@ -272,14 +483,10 @@ def dibujar_imagen_en_pdf(
     titulo: str,
     image_path: str,
     y: int,
-    ancho_max: int = 240,
-    alto_max: int = 160
+    ancho_max: int = 250,
+    alto_max: int = 165
 ) -> int:
-    """
-    Inserta imagen en PDF manteniendo proporción.
-    """
-
-    y = nueva_pagina_si_necesaria(c, y, espacio_requerido=230)
+    y = nueva_pagina_si_necesaria(c, y, espacio_requerido=235)
 
     c.setFont("Helvetica-Bold", 11)
     c.setFillColor(colors.HexColor("#1E3A5F"))
@@ -332,10 +539,6 @@ def crear_pdf_reporte(
     imagenes: dict,
     usuario_reporta: str,
 ) -> str:
-    """
-    Crea el PDF del reporte vehicular.
-    """
-
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf_path = temp_pdf.name
     temp_pdf.close()
@@ -344,7 +547,6 @@ def crear_pdf_reporte(
 
     y = dibujar_encabezado_pdf(c, "REPORTE VEHICULAR")
 
-    # Datos del vehículo
     c.setFont("Helvetica-Bold", 13)
     c.setFillColor(colors.HexColor("#1E3A5F"))
     c.drawString(PDF_MARGIN_LEFT, y, "Datos del vehículo")
@@ -363,7 +565,6 @@ def crear_pdf_reporte(
 
     y -= 10
 
-    # Observaciones
     y = nueva_pagina_si_necesaria(c, y, espacio_requerido=120)
 
     c.setFont("Helvetica-Bold", 13)
@@ -374,21 +575,15 @@ def crear_pdf_reporte(
     c.setFont("Helvetica", 10)
     c.setFillColor(colors.black)
 
-    if observaciones.strip():
-        texto = observaciones.strip()
-    else:
-        texto = "Sin observaciones."
+    texto_observaciones = observaciones.strip() if observaciones.strip() else "Sin observaciones."
 
-    lineas = dividir_texto(texto, max_chars=90)
-
-    for linea in lineas:
+    for linea in dividir_texto(texto_observaciones, max_chars=90):
         y = nueva_pagina_si_necesaria(c, y, espacio_requerido=80)
         c.drawString(PDF_MARGIN_LEFT, y, linea)
         y -= 14
 
     y -= 15
 
-    # Evidencias
     y = nueva_pagina_si_necesaria(c, y, espacio_requerido=180)
 
     c.setFont("Helvetica-Bold", 13)
@@ -410,7 +605,6 @@ def crear_pdf_reporte(
         c.drawString(PDF_MARGIN_LEFT, y, "No se adjuntaron evidencias fotográficas.")
         y -= 20
 
-    # Footer final
     y = nueva_pagina_si_necesaria(c, y, espacio_requerido=80)
 
     c.setStrokeColor(colors.HexColor("#D9E2EC"))
@@ -430,28 +624,6 @@ def crear_pdf_reporte(
     return pdf_path
 
 
-def dividir_texto(texto: str, max_chars: int = 90) -> list:
-    """
-    Divide texto largo en líneas simples para PDF.
-    """
-
-    palabras = texto.split()
-    lineas = []
-    linea_actual = ""
-
-    for palabra in palabras:
-        if len(linea_actual) + len(palabra) + 1 <= max_chars:
-            linea_actual += " " + palabra if linea_actual else palabra
-        else:
-            lineas.append(linea_actual)
-            linea_actual = palabra
-
-    if linea_actual:
-        lineas.append(linea_actual)
-
-    return lineas
-
-
 # =========================================================
 # ENVÍO DE CORREO
 # =========================================================
@@ -462,11 +634,6 @@ def enviar_correo_con_pdf(
     cuerpo: str,
     nombre_archivo: str
 ) -> tuple:
-    """
-    Envía el PDF por correo usando SMTP.
-    Requiere configuración en Streamlit secrets.
-    """
-
     try:
         smtp_host = st.secrets["SMTP_HOST"]
         smtp_port = int(st.secrets["SMTP_PORT"])
@@ -488,9 +655,15 @@ def enviar_correo_con_pdf(
                 filename=nombre_archivo
             )
 
-        with smtplib.SMTP_SSL(smtp_host, smtp_port) as smtp:
-            smtp.login(smtp_user, smtp_password)
-            smtp.send_message(msg)
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port) as smtp:
+                smtp.login(smtp_user, smtp_password)
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port) as smtp:
+                smtp.starttls()
+                smtp.login(smtp_user, smtp_password)
+                smtp.send_message(msg)
 
         return True, "Correo enviado correctamente."
 
@@ -498,7 +671,7 @@ def enviar_correo_con_pdf(
         return (
             False,
             f"Falta configurar la variable en st.secrets: {error}. "
-            "Configura SMTP_HOST, SMTP_PORT, SMTP_USER y SMTP_PASSWORD."
+            "Configura SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD y SMTP_FROM."
         )
 
     except Exception as error:
@@ -540,7 +713,10 @@ def main() -> None:
 
     df = cargar_datos_vehiculos()
 
-    st.markdown('<div class="section-title">1. Selección del vehículo</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">1. Selección del vehículo</div>',
+        unsafe_allow_html=True
+    )
 
     col_filtro_1, col_filtro_2 = st.columns(2)
 
@@ -588,7 +764,10 @@ def main() -> None:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="section-title">2. Datos del reporte</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">2. Datos del reporte</div>',
+        unsafe_allow_html=True
+    )
 
     col_datos_1, col_datos_2, col_datos_3 = st.columns(3)
 
@@ -627,13 +806,16 @@ def main() -> None:
         placeholder="Captura el nombre del usuario que reporta"
     )
 
-    st.markdown('<div class="section-title">3. Evidencias fotográficas</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">3. Evidencias fotográficas</div>',
+        unsafe_allow_html=True
+    )
 
     st.markdown(
         """
         <div class="warning-box">
-            Los campos marcados como obligatorios son recomendados para generar un reporte completo.
-            Las secciones opcionales pueden dejarse vacías.
+            Los campos marcados con * son recomendados para generar un reporte completo.
+            Puedes generar el PDF aunque falten evidencias si activas la opción correspondiente.
         </div>
         """,
         unsafe_allow_html=True
@@ -658,7 +840,7 @@ def main() -> None:
 
     imagenes = {}
 
-    st.markdown("#### Evidencias obligatorias")
+    st.markdown("#### Evidencias recomendadas")
 
     for i in range(0, len(secciones_obligatorias), 2):
         col_img_1, col_img_2 = st.columns(2)
@@ -689,7 +871,10 @@ def main() -> None:
             key=f"img_{seccion}"
         )
 
-    st.markdown('<div class="section-title">4. Observaciones</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">4. Observaciones</div>',
+        unsafe_allow_html=True
+    )
 
     observaciones = st.text_area(
         "Observaciones opcionales",
@@ -697,7 +882,10 @@ def main() -> None:
         height=120
     )
 
-    st.markdown('<div class="section-title">5. Generar reporte</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">5. Generar reporte</div>',
+        unsafe_allow_html=True
+    )
 
     faltantes = []
 
@@ -737,14 +925,11 @@ def main() -> None:
 
     puede_generar = permitir_generar_incompleto or not faltantes
 
-    col_pdf_1, col_pdf_2 = st.columns([1, 1])
-
-    with col_pdf_1:
-        generar = st.button(
-            "📄 Generar PDF",
-            use_container_width=True,
-            disabled=not puede_generar
-        )
+    generar = st.button(
+        "📄 Generar PDF",
+        use_container_width=True,
+        disabled=not puede_generar
+    )
 
     if generar:
         with st.spinner("Generando reporte PDF..."):
@@ -759,7 +944,12 @@ def main() -> None:
                 usuario_reporta=usuario_reporta,
             )
 
-        nombre_pdf = f"Reporte_Vehicular_{placa_seleccionada}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        nombre_pdf = (
+            f"Reporte_Vehicular_{placa_seleccionada}_"
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        )
+
+        nombre_pdf = nombre_pdf.replace(" ", "_").replace("/", "_").replace("\\", "_")
 
         st.session_state["pdf_path_vehicular"] = pdf_path
         st.session_state["nombre_pdf_vehicular"] = nombre_pdf
@@ -779,7 +969,10 @@ def main() -> None:
                 use_container_width=True
             )
 
-        st.markdown('<div class="section-title">6. Enviar por correo</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-title">6. Enviar por correo</div>',
+            unsafe_allow_html=True
+        )
 
         with st.expander("📧 Envío por correo", expanded=False):
             destinatario = st.text_input(
