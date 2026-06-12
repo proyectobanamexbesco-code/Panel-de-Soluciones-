@@ -54,6 +54,14 @@ MODULES: List[PortalModule] = [
         enabled=True,
         status="Próximamente",
     ),
+    PortalModule(
+        path="pages/05_App_Vehicular.py",
+        label="Ir a App Vehicular",
+        icon="🚗",
+        description="Aplicación para reporte vehicular con captura de evidencias, generación de PDF y descarga del reporte.",
+        enabled=True,
+        status="Activo",
+    ),
 ]
 
 
