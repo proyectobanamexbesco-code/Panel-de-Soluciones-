@@ -1,8 +1,5 @@
 import os
-import re
-from datetime import date
-
-import pandas as pd
+import re pandas as pdimport re
 import streamlit as st
 from fpdf import FPDF
 
@@ -32,6 +29,7 @@ DEFAULT_UTILIDAD_MANUAL = 23.55
 UTILIDAD_PRECIARIO = 0.00
 DEFAULT_CANTIDAD = 1.0
 DEFAULT_PRECIO = 0.0
+BORRADOR_FOLIO_KEY = "__BORRADOR__"
 
 MANUAL_TIPOS_SERVICIO = [
     "Aire Acondicionado",
@@ -66,7 +64,6 @@ TABLE_COLS = {
     "pu": 20,
     "importe": 24,
 }
-
 TABLE_LINE_HEIGHT = 4.2
 TABLE_MIN_ROW_HEIGHT = 10
 
@@ -76,6 +73,46 @@ DEFAULT_CONDICIONES = (
     "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
     "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS, TRABAJOS ADICIONALES SERAN COTIZADOS POR SEPARADO."
 )
+
+PLANTILLAS_CONDICIONES = {
+    "Base Besco": DEFAULT_CONDICIONES,
+    "Suministro": (
+        "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES.\n"
+        "- SE REQUIERE ORDEN DE COMPRA O CORREO DE AUTORIZACIÓN PARA PROGRAMAR EL SUMINISTRO.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- PRECIOS SUJETOS A DISPONIBILIDAD DE INVENTARIO Y CAMBIOS DE FABRICANTE SIN PREVIO AVISO."
+    ),
+    "Servicio": (
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LAS ACTIVIDADES.\n"
+        "- LOS TRABAJOS SE PROGRAMARÁN DE ACUERDO CON LA DISPONIBILIDAD OPERATIVA Y DE ACCESO AL SITIO.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- TRABAJOS ADICIONALES O FUERA DE ALCANCE SERÁN COTIZADOS POR SEPARADO."
+    ),
+    "Instalación": (
+        "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES, SALVO EXISTENCIA EN STOCK.\n"
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LAS ACTIVIDADES.\n"
+        "- EL CLIENTE DEBERÁ PROPORCIONAR ACCESO, ENERGÍA Y ÁREA LIBRE PARA LA EJECUCIÓN DE LOS TRABAJOS.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS."
+    ),
+    "Mantenimiento Preventivo": (
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA PROGRAMAR EL SERVICIO.\n"
+        "- LOS EQUIPOS DEBERÁN ESTAR DISPONIBLES Y CON ACCESO LIBRE PARA EJECUTAR LAS ACTIVIDADES.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- REFACCIONES O CORRECTIVOS DETECTADOS DURANTE EL SERVICIO SERÁN COTIZADOS POR SEPARADO."
+    ),
+    "Mantenimiento Correctivo": (
+        "- EL TIEMPO DE ENTREGA DE MATERIAL O REFACCIONES SERÁ DE 15 DÍAS HÁBILES, SUJETO A DISPONIBILIDAD.\n"
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LOS TRABAJOS.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- EL PRECIO CUBRE ÚNICAMENTE EL ALCANCE DESCRITO; TRABAJOS ADICIONALES SERÁN COTIZADOS POR SEPARADO."
+    ),
+    "Obra / Proyecto": (
+        "- EL TIEMPO DE ENTREGA DE MATERIALES SERÁ DE 15 DÍAS HÁBILES O CONFORME A PROGRAMA APROBADO.\n"
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LOS TRABAJOS.\n"
+        "- CUALQUIER CAMBIO DE ALCANCE, VOLÚMENES O INGENIERÍA SERÁ COTIZADO POR SEPARADO.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS."
+    ),
+}
 
 
 # =========================================================
@@ -114,6 +151,21 @@ def init_session_state():
     if "condiciones_cotizacion" not in st.session_state:
         st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
 
+    if "condiciones_por_folio" not in st.session_state:
+        st.session_state.condiciones_por_folio = {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES}
+
+    if "plantilla_por_folio" not in st.session_state:
+        st.session_state.plantilla_por_folio = {BORRADOR_FOLIO_KEY: "Base Besco"}
+
+    if "folio_condiciones_cargado" not in st.session_state:
+        st.session_state.folio_condiciones_cargado = BORRADOR_FOLIO_KEY
+
+    if "editor_condiciones" not in st.session_state:
+        st.session_state.editor_condiciones = DEFAULT_CONDICIONES
+
+    if "selector_plantilla_condiciones" not in st.session_state:
+        st.session_state.selector_plantilla_condiciones = "Base Besco"
+
     if "mensaje_exito" not in st.session_state:
         st.session_state.mensaje_exito = ""
 
@@ -125,6 +177,11 @@ def reset_cotizacion():
     st.session_state.conceptos_cotizacion = []
     st.session_state.datos_cotizacion = get_default_datos_cotizacion()
     st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
+    st.session_state.condiciones_por_folio = {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES}
+    st.session_state.plantilla_por_folio = {BORRADOR_FOLIO_KEY: "Base Besco"}
+    st.session_state.folio_condiciones_cargado = BORRADOR_FOLIO_KEY
+    st.session_state.editor_condiciones = DEFAULT_CONDICIONES
+    st.session_state.selector_plantilla_condiciones = "Base Besco"
     st.session_state.mensaje_exito = ""
     st.session_state.mensaje_error = ""
 
@@ -210,6 +267,42 @@ def calcular_totales(conceptos):
     iva = round(subtotal * IVA_RATE, 2)
     total = round(subtotal + iva, 2)
     return subtotal, iva, total
+
+
+def get_folio_key(folio):
+    folio_txt = str(folio).strip().upper()
+    return folio_txt if folio_txt else BORRADOR_FOLIO_KEY
+
+
+def persistir_condiciones_folio(folio_key, condiciones, plantilla):
+    st.session_state.condiciones_por_folio[folio_key] = condiciones.strip() if condiciones.strip() else DEFAULT_CONDICIONES
+    st.session_state.plantilla_por_folio[folio_key] = plantilla if plantilla in PLANTILLAS_CONDICIONES else "Base Besco"
+    st.session_state.condiciones_cotizacion = st.session_state.condiciones_por_folio[folio_key]
+
+
+def sincronizar_condiciones_con_folio(folio_actual):
+    nuevo_folio_key = get_folio_key(folio_actual)
+    folio_cargado = st.session_state.folio_condiciones_cargado
+
+    if folio_cargado != nuevo_folio_key:
+        # Guardar lo que estuviera escribiéndose en el folio anterior antes de cambiar
+        persistir_condiciones_folio(
+            folio_cargado,
+            st.session_state.get("editor_condiciones", DEFAULT_CONDICIONES),
+            st.session_state.get("selector_plantilla_condiciones", "Base Besco"),
+        )
+
+        if nuevo_folio_key not in st.session_state.condiciones_por_folio:
+            st.session_state.condiciones_por_folio[nuevo_folio_key] = DEFAULT_CONDICIONES
+        if nuevo_folio_key not in st.session_state.plantilla_por_folio:
+            st.session_state.plantilla_por_folio[nuevo_folio_key] = "Base Besco"
+
+        st.session_state.editor_condiciones = st.session_state.condiciones_por_folio[nuevo_folio_key]
+        st.session_state.selector_plantilla_condiciones = st.session_state.plantilla_por_folio[nuevo_folio_key]
+        st.session_state.condiciones_cotizacion = st.session_state.condiciones_por_folio[nuevo_folio_key]
+        st.session_state.folio_condiciones_cargado = nuevo_folio_key
+
+    return nuevo_folio_key
 
 
 # =========================================================
@@ -1035,31 +1128,71 @@ def render_selector_preciario():
 
 
 # =========================================================
-# UI - CONDICIONES EDITABLES
+# UI - CONDICIONES EDITABLES POR FOLIO
 # =========================================================
 def render_condiciones_editables():
     st.markdown("## 3. Condiciones comerciales")
+
+    folio_actual = st.session_state.datos_cotizacion.get("folio", "")
+    folio_key = sincronizar_condiciones_con_folio(folio_actual)
+
     with st.container(border=True):
-        st.caption("Estas condiciones se imprimirán en el pie del PDF y puedes editarlas libremente.")
-        condiciones = st.text_area(
+        if folio_key == BORRADOR_FOLIO_KEY:
+            st.caption("Estás editando las condiciones del borrador actual. Cuando captures un folio, se guardarán para ese folio.")
+        else:
+            st.caption(f"Las condiciones y la plantilla se guardan automáticamente para el folio: {folio_key}")
+
+        st.selectbox(
+            "Plantilla de condiciones",
+            options=list(PLANTILLAS_CONDICIONES.keys()),
+            key="selector_plantilla_condiciones",
+            help="Selecciona una plantilla base y luego, si lo deseas, edita el texto manualmente.",
+        )
+
+        st.text_area(
             "Condiciones de la cotización",
-            value=st.session_state.condiciones_cotizacion,
+            key="editor_condiciones",
             height=180,
             help="Edita, agrega o elimina las condiciones comerciales que deben aparecer en el PDF.",
         )
 
-        col_a, col_b = st.columns(2)
+        col_a, col_b, col_c = st.columns(3)
         with col_a:
-            if st.button("💾 Guardar condiciones", use_container_width=True):
-                st.session_state.condiciones_cotizacion = condiciones.strip() if condiciones.strip() else DEFAULT_CONDICIONES
-                st.success("Condiciones actualizadas correctamente.")
-        with col_b:
-            if st.button("↩️ Restaurar condiciones base", use_container_width=True):
-                st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
+            if st.button("📥 Aplicar plantilla", use_container_width=True):
+                plantilla = st.session_state.selector_plantilla_condiciones
+                nuevo_texto = PLANTILLAS_CONDICIONES[plantilla]
+                st.session_state.editor_condiciones = nuevo_texto
+                persistir_condiciones_folio(folio_key, nuevo_texto, plantilla)
+                st.success(f"Plantilla '{plantilla}' aplicada al folio {folio_key if folio_key != BORRADOR_FOLIO_KEY else 'BORRADOR'}.")
                 st.rerun()
 
-        # Guarda siempre lo que el usuario va escribiendo
-        st.session_state.condiciones_cotizacion = condiciones
+        with col_b:
+            if st.button("💾 Guardar condiciones", use_container_width=True):
+                persistir_condiciones_folio(
+                    folio_key,
+                    st.session_state.editor_condiciones,
+                    st.session_state.selector_plantilla_condiciones,
+                )
+                st.success(f"Condiciones guardadas para el folio {folio_key if folio_key != BORRADOR_FOLIO_KEY else 'BORRADOR'}.")
+
+        with col_c:
+            if st.button("↩️ Restaurar base", use_container_width=True):
+                st.session_state.selector_plantilla_condiciones = "Base Besco"
+                st.session_state.editor_condiciones = DEFAULT_CONDICIONES
+                persistir_condiciones_folio(folio_key, DEFAULT_CONDICIONES, "Base Besco")
+                st.rerun()
+
+        # Autosave en cada rerun
+        persistir_condiciones_folio(
+            folio_key,
+            st.session_state.editor_condiciones,
+            st.session_state.selector_plantilla_condiciones,
+        )
+
+        if folio_key != BORRADOR_FOLIO_KEY and folio_key in st.session_state.plantilla_por_folio:
+            st.info(
+                f"Plantilla actual del folio {folio_key}: {st.session_state.plantilla_por_folio[folio_key]}"
+            )
 
 
 # =========================================================
@@ -1117,7 +1250,9 @@ def render_resumen_y_documento():
     folio_pdf = datos["folio"].strip() if datos["folio"].strip() else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime("%d/%m/%Y") if datos["fecha"] else date.today().strftime("%d/%m/%Y")
     nombre_cot = datos.get("nombre_cotizacion", "").strip()
-    condiciones = st.session_state.condiciones_cotizacion.strip() if st.session_state.condiciones_cotizacion.strip() else DEFAULT_CONDICIONES
+    folio_key = get_folio_key(folio_pdf)
+    condiciones = st.session_state.condiciones_por_folio.get(folio_key, st.session_state.editor_condiciones)
+    condiciones = condiciones.strip() if condiciones.strip() else DEFAULT_CONDICIONES
 
     try:
         pdf_bytes = generar_pdf_cotizacion(
@@ -1181,3 +1316,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+from datetime import date
+
