@@ -28,7 +28,8 @@ st.set_page_config(
 # CONSTANTES
 # =========================================================
 IVA_RATE = 0.16
-DEFAULT_UTILIDAD = 23.55
+DEFAULT_UTILIDAD_MANUAL = 23.55
+UTILIDAD_PRECIARIO = 0.00
 DEFAULT_CANTIDAD = 1.0
 DEFAULT_PRECIO = 0.0
 
@@ -69,6 +70,16 @@ TABLE_COLS = {
 TABLE_LINE_HEIGHT = 4.2
 TABLE_MIN_ROW_HEIGHT = 10
 
+DEFAULT_CONDICIONES = (
+    "- TIEMPO DE ENTREGA DE MATERIAL DE 1 A 2 DÍAS HÁBILES.\n"
+    "- TIEMPO DE ENTREGA DEL SERVICIO DE 1 A 2 DÍAS HÁBILES.\n"
+    "- SE REQUIERE ORDEN DE COMPRA, PEDIDO O CONTRATO.\n"
+    "- PAGO CONTRA ENTREGA DEL SERVICIO.\n"
+    "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+    "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS.\n"
+    "- LOS TRABAJOS SE EJECUTARÁN EN HORARIO HÁBIL; SI SE REQUIERE FUERA DEL MISMO, HABRÁ VARIACIÓN EN EL COSTO DEL 35%."
+)
+
 
 # =========================================================
 # ESTADO
@@ -103,6 +114,9 @@ def init_session_state():
     if "datos_cotizacion" not in st.session_state:
         st.session_state.datos_cotizacion = get_default_datos_cotizacion()
 
+    if "condiciones_cotizacion" not in st.session_state:
+        st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
+
     if "mensaje_exito" not in st.session_state:
         st.session_state.mensaje_exito = ""
 
@@ -113,6 +127,7 @@ def init_session_state():
 def reset_cotizacion():
     st.session_state.conceptos_cotizacion = []
     st.session_state.datos_cotizacion = get_default_datos_cotizacion()
+    st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
     st.session_state.mensaje_exito = ""
     st.session_state.mensaje_error = ""
 
@@ -508,6 +523,10 @@ def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, tot
 # PDF
 # =========================================================
 class PDFCotizacion(FPDF):
+    def __init__(self, condiciones):
+        super().__init__("P", "mm", "Letter")
+        self.condiciones = condiciones
+
     def header(self):
         logo_paths = [
             "logo besco 2026.jpeg",
@@ -537,18 +556,10 @@ class PDFCotizacion(FPDF):
         self.ln(10)
 
     def footer(self):
-        self.set_y(-45)
+        self.set_y(-48)
         self.set_font("Arial", "I", 7)
-        terminos = (
-            "- TIEMPO DE ENTREGA DE MATERIAL DE 1 A 2 DIAS HABILES.\n"
-            "- TIEMPO DE ENTREGA DEL SERVICIO DE 1 A 2 DIAS HABILES.\n"
-            "- SE REQUIERE ORDEN DE COMPRA, PEDIDO, O CONTRATO.\n"
-            "- PAGO CONTRA ENTREGA DEL SERVICIO.\n"
-            "- VIGENCIA DE LA COTIZACION 15 DIAS.\n"
-            "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS.\n"
-            "- LOS TRABAJOS SE EJECUTARAN EN HORARIO HABIL; SI SE REQUIERE FUERA DEL MISMO, HABRA VARIACION EN EL COSTO DEL 35%."
-        )
-        self.multi_cell(0, 4, limpiar_texto_pdf(terminos), 0, "L")
+        texto_footer = self.condiciones if self.condiciones else DEFAULT_CONDICIONES
+        self.multi_cell(0, 4, limpiar_texto_pdf(texto_footer), 0, "L")
 
 
 def pdf_wrap_lines(pdf, text, width):
@@ -614,12 +625,10 @@ def draw_table_row(pdf, concepto):
         pdf.rect(x, y, width, row_height)
         x += width
 
-    # Código
     x_codigo = pdf.l_margin
     pdf.set_xy(x_codigo, y + (row_height / 2) - 2)
     pdf.cell(TABLE_COLS["codigo"], 4, limpiar_texto_pdf(str(concepto["Item"])), 0, 0, "C")
 
-    # Concepto
     x_concepto = pdf.l_margin + TABLE_COLS["codigo"] + 1.5
     y_text = y + 3.2
     for line in lines:
@@ -627,22 +636,18 @@ def draw_table_row(pdf, concepto):
         pdf.cell(TABLE_COLS["concepto"] - 3, 4, line, 0, 0, "L")
         y_text += TABLE_LINE_HEIGHT
 
-    # Unidad
     x_unidad = pdf.l_margin + TABLE_COLS["codigo"] + TABLE_COLS["concepto"]
     pdf.set_xy(x_unidad, y + (row_height / 2) - 2)
     pdf.cell(TABLE_COLS["unidad"], 4, limpiar_texto_pdf(str(concepto["Unidad"])), 0, 0, "C")
 
-    # Cantidad
     x_cantidad = x_unidad + TABLE_COLS["unidad"]
     pdf.set_xy(x_cantidad, y + (row_height / 2) - 2)
     pdf.cell(TABLE_COLS["cantidad"], 4, limpiar_texto_pdf(f"{float(concepto['Cantidad']):,.2f}"), 0, 0, "C")
 
-    # PU
     x_pu = x_cantidad + TABLE_COLS["cantidad"]
     pdf.set_xy(x_pu, y + (row_height / 2) - 2)
     pdf.cell(TABLE_COLS["pu"] - 1.5, 4, limpiar_texto_pdf(f"$ {float(concepto['Precio Venta']):,.2f}"), 0, 0, "R")
 
-    # Importe
     x_importe = x_pu + TABLE_COLS["pu"]
     pdf.set_xy(x_importe, y + (row_height / 2) - 2)
     pdf.cell(TABLE_COLS["importe"] - 1.5, 4, limpiar_texto_pdf(f"$ {float(concepto['Importe']):,.2f}"), 0, 0, "R")
@@ -650,8 +655,8 @@ def draw_table_row(pdf, concepto):
     pdf.set_y(y + row_height)
 
 
-def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
-    pdf = PDFCotizacion("P", "mm", "Letter")
+def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
+    pdf = PDFCotizacion(condiciones=condiciones)
     pdf.set_auto_page_break(auto=False)
     pdf.add_page()
 
@@ -713,7 +718,6 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
     for concepto in conceptos:
         draw_table_row(pdf, concepto)
 
-    # Totales
     if pdf.get_y() > 225:
         pdf.add_page()
 
@@ -731,7 +735,6 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total):
     pdf.cell(15, 6, limpiar_texto_pdf("$"), 0, 0, "R")
     pdf.cell(30, 6, limpiar_texto_pdf(f"{total:,.2f}"), 0, 1, "R")
 
-    # Firma
     if pdf.get_y() > 205:
         pdf.add_page()
 
@@ -973,14 +976,26 @@ def render_selector_preciario():
                 format="%.2f",
             )
 
+        utilidad_default = UTILIDAD_PRECIARIO if usar_preciario_besco else DEFAULT_UTILIDAD_MANUAL
+        utilidad_help = (
+            "Cuando el Preciario BESCO está habilitado, la utilidad se fija automáticamente en 0%."
+            if usar_preciario_besco
+            else "Captura el porcentaje de utilidad deseado para la cotización manual."
+        )
+
         with col5:
             utilidad_pct = st.number_input(
                 "Utilidad (%)",
                 min_value=0.00,
-                value=DEFAULT_UTILIDAD,
+                value=float(utilidad_default),
                 step=0.50,
                 format="%.2f",
+                disabled=usar_preciario_besco,
+                help=utilidad_help,
             )
+
+        if usar_preciario_besco:
+            utilidad_pct = UTILIDAD_PRECIARIO
 
         utilidad_monto_total = calcular_utilidad_monto(precio_unitario, utilidad_pct) * cantidad
         precio_venta = calcular_precio_venta(precio_unitario, utilidad_pct)
@@ -1023,10 +1038,38 @@ def render_selector_preciario():
 
 
 # =========================================================
+# UI - CONDICIONES EDITABLES
+# =========================================================
+def render_condiciones_editables():
+    st.markdown("## 3. Condiciones comerciales")
+    with st.container(border=True):
+        st.caption("Estas condiciones se imprimirán en el pie del PDF y puedes editarlas libremente.")
+        condiciones = st.text_area(
+            "Condiciones de la cotización",
+            value=st.session_state.condiciones_cotizacion,
+            height=180,
+            help="Edita, agrega o elimina las condiciones comerciales que deben aparecer en el PDF.",
+        )
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("💾 Guardar condiciones", use_container_width=True):
+                st.session_state.condiciones_cotizacion = condiciones.strip() if condiciones.strip() else DEFAULT_CONDICIONES
+                st.success("Condiciones actualizadas correctamente.")
+        with col_b:
+            if st.button("↩️ Restaurar condiciones base", use_container_width=True):
+                st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
+                st.rerun()
+
+        # Guarda siempre lo que el usuario va escribiendo
+        st.session_state.condiciones_cotizacion = condiciones
+
+
+# =========================================================
 # UI - RESUMEN Y PDF
 # =========================================================
 def render_resumen_y_documento():
-    st.markdown("## 3. Resumen y Documento Final")
+    st.markdown("## 4. Resumen y Documento Final")
 
     if st.session_state.mensaje_exito:
         st.success(st.session_state.mensaje_exito)
@@ -1077,6 +1120,7 @@ def render_resumen_y_documento():
     folio_pdf = datos["folio"].strip() if datos["folio"].strip() else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime("%d/%m/%Y") if datos["fecha"] else date.today().strftime("%d/%m/%Y")
     nombre_cot = datos.get("nombre_cotizacion", "").strip()
+    condiciones = st.session_state.condiciones_cotizacion.strip() if st.session_state.condiciones_cotizacion.strip() else DEFAULT_CONDICIONES
 
     try:
         pdf_bytes = generar_pdf_cotizacion(
@@ -1085,6 +1129,7 @@ def render_resumen_y_documento():
             subtotal=subtotal,
             iva=iva,
             total=total,
+            condiciones=condiciones,
         )
     except Exception as e:
         st.error(f"No se pudo generar el PDF: {e}")
@@ -1133,6 +1178,7 @@ def main():
 
     render_seccion_identificacion()
     render_selector_preciario()
+    render_condiciones_editables()
     render_resumen_y_documento()
 
 
