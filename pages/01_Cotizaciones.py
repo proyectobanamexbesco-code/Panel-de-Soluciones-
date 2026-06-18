@@ -1,5 +1,8 @@
 import os
-import re pandas as pdimport re
+import re
+from datetime import date
+
+import pandas as pd
 import streamlit as st
 from fpdf import FPDF
 
@@ -70,165 +73,7 @@ TABLE_MIN_ROW_HEIGHT = 10
 DEFAULT_CONDICIONES = (
     "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES.\n"
     "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACION, PEDIDO O CONTRATO, PARA INICIAR LAS ACTIVIDADES.\n"
-    "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
-    "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS, TRABAJOS ADICIONALES SERAN COTIZADOS POR SEPARADO."
-)
-
-PLANTILLAS_CONDICIONES = {
-    "Base Besco": DEFAULT_CONDICIONES,
-    "Suministro": (
-        "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES.\n"
-        "- SE REQUIERE ORDEN DE COMPRA O CORREO DE AUTORIZACIÓN PARA PROGRAMAR EL SUMINISTRO.\n"
-        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
-        "- PRECIOS SUJETOS A DISPONIBILIDAD DE INVENTARIO Y CAMBIOS DE FABRICANTE SIN PREVIO AVISO."
-    ),
-    "Servicio": (
-        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LAS ACTIVIDADES.\n"
-        "- LOS TRABAJOS SE PROGRAMARÁN DE ACUERDO CON LA DISPONIBILIDAD OPERATIVA Y DE ACCESO AL SITIO.\n"
-        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
-        "- TRABAJOS ADICIONALES O FUERA DE ALCANCE SERÁN COTIZADOS POR SEPARADO."
-    ),
-    "Instalación": (
-        "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES, SALVO EXISTENCIA EN STOCK.\n"
-        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LAS ACTIVIDADES.\n"
-        "- EL CLIENTE DEBERÁ PROPORCIONAR ACCESO, ENERGÍA Y ÁREA LIBRE PARA LA EJECUCIÓN DE LOS TRABAJOS.\n"
-        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS."
-    ),
-    "Mantenimiento Preventivo": (
-        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA PROGRAMAR EL SERVICIO.\n"
-        "- LOS EQUIPOS DEBERÁN ESTAR DISPONIBLES Y CON ACCESO LIBRE PARA EJECUTAR LAS ACTIVIDADES.\n"
-        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
-        "- REFACCIONES O CORRECTIVOS DETECTADOS DURANTE EL SERVICIO SERÁN COTIZADOS POR SEPARADO."
-    ),
-    "Mantenimiento Correctivo": (
-        "- EL TIEMPO DE ENTREGA DE MATERIAL O REFACCIONES SERÁ DE 15 DÍAS HÁBILES, SUJETO A DISPONIBILIDAD.\n"
-        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LOS TRABAJOS.\n"
-        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
-        "- EL PRECIO CUBRE ÚNICAMENTE EL ALCANCE DESCRITO; TRABAJOS ADICIONALES SERÁN COTIZADOS POR SEPARADO."
-    ),
-    "Obra / Proyecto": (
-        "- EL TIEMPO DE ENTREGA DE MATERIALES SERÁ DE 15 DÍAS HÁBILES O CONFORME A PROGRAMA APROBADO.\n"
-        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LOS TRABAJOS.\n"
-        "- CUALQUIER CAMBIO DE ALCANCE, VOLÚMENES O INGENIERÍA SERÁ COTIZADO POR SEPARADO.\n"
-        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS."
-    ),
-}
-
-
-# =========================================================
-# ESTADO
-# =========================================================
-def get_default_datos_cotizacion():
-    return {
-        "folio": "",
-        "fecha": date.today(),
-        "cliente_nombre": "",
-        "cliente_empresa": "",
-        "cliente_contacto": "",
-        "cliente_telefono": "",
-        "cliente_correo": "",
-        "cotiza_nombre": "",
-        "cotiza_puesto": "",
-        "cotiza_telefono": "",
-        "cotiza_correo": "",
-        "nombre_cotizacion": "",
-    }
-
-
-def init_session_state():
-    if "conceptos_cotizacion" not in st.session_state:
-        st.session_state.conceptos_cotizacion = []
-
-    if "usar_preciario_besco" not in st.session_state:
-        st.session_state.usar_preciario_besco = True
-
-    if "toggle_preciario_besco" not in st.session_state:
-        st.session_state.toggle_preciario_besco = st.session_state.usar_preciario_besco
-
-    if "datos_cotizacion" not in st.session_state:
-        st.session_state.datos_cotizacion = get_default_datos_cotizacion()
-
-    if "condiciones_cotizacion" not in st.session_state:
-        st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
-
-    if "condiciones_por_folio" not in st.session_state:
-        st.session_state.condiciones_por_folio = {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES}
-
-    if "plantilla_por_folio" not in st.session_state:
-        st.session_state.plantilla_por_folio = {BORRADOR_FOLIO_KEY: "Base Besco"}
-
-    if "folio_condiciones_cargado" not in st.session_state:
-        st.session_state.folio_condiciones_cargado = BORRADOR_FOLIO_KEY
-
-    if "editor_condiciones" not in st.session_state:
-        st.session_state.editor_condiciones = DEFAULT_CONDICIONES
-
-    if "selector_plantilla_condiciones" not in st.session_state:
-        st.session_state.selector_plantilla_condiciones = "Base Besco"
-
-    if "mensaje_exito" not in st.session_state:
-        st.session_state.mensaje_exito = ""
-
-    if "mensaje_error" not in st.session_state:
-        st.session_state.mensaje_error = ""
-
-
-def reset_cotizacion():
-    st.session_state.conceptos_cotizacion = []
-    st.session_state.datos_cotizacion = get_default_datos_cotizacion()
-    st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
-    st.session_state.condiciones_por_folio = {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES}
-    st.session_state.plantilla_por_folio = {BORRADOR_FOLIO_KEY: "Base Besco"}
-    st.session_state.folio_condiciones_cargado = BORRADOR_FOLIO_KEY
-    st.session_state.editor_condiciones = DEFAULT_CONDICIONES
-    st.session_state.selector_plantilla_condiciones = "Base Besco"
-    st.session_state.mensaje_exito = ""
-    st.session_state.mensaje_error = ""
-
-
-# =========================================================
-# HELPERS GENERALES
-# =========================================================
-def formatear_moneda(valor):
-    return f"${float(valor):,.2f}"
-
-
-def parse_float(value, default=0.0):
-    if value is None:
-        return default
-
-    if isinstance(value, (int, float)):
-        return float(value)
-
-    text = str(value).strip()
-    if text == "":
-        return default
-
-    text = (
-        text.replace("$", "")
-        .replace(",", "")
-        .replace("MXN", "")
-        .replace("mxn", "")
-        .replace(" ", "")
-    )
-    text = re.sub(r"[^0-9\.\-]", "", text)
-
-    try:
-        return float(text)
-    except ValueError:
-        return default
-
-
-def limpiar_texto_pdf(texto):
-    if not texto:
-        return ""
-
-    texto = str(texto)
-    reemplazos = {
-        "•": "-",
-        "“": '"',
-        "”": '"',
-        "‘": "'",
+    "- VIGENCIA DE LA COTIZACIÓN 15": "'",    "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
         "’": "'",
         "–": "-",
         "—": "-",
@@ -285,7 +130,6 @@ def sincronizar_condiciones_con_folio(folio_actual):
     folio_cargado = st.session_state.folio_condiciones_cargado
 
     if folio_cargado != nuevo_folio_key:
-        # Guardar lo que estuviera escribiéndose en el folio anterior antes de cambiar
         persistir_condiciones_folio(
             folio_cargado,
             st.session_state.get("editor_condiciones", DEFAULT_CONDICIONES),
@@ -843,291 +687,6 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
 
 
 # =========================================================
-# UI - IDENTIFICACIÓN
-# =========================================================
-def render_seccion_identificacion():
-    st.markdown("## 1. Identificación del cliente y persona que cotiza")
-
-    datos = st.session_state.datos_cotizacion
-
-    with st.container(border=True):
-        col_g1, col_g2, col_g3 = st.columns(3)
-        with col_g1:
-            folio = st.text_input(
-                "Folio / OT / TK",
-                value=datos["folio"],
-                placeholder="Ej. COT-001",
-                max_chars=40,
-            )
-        with col_g2:
-            fecha = st.date_input("Fecha de cotización", value=datos["fecha"])
-        with col_g3:
-            nombre_cotizacion = st.text_input(
-                "Nombre de Cotización / Proyecto",
-                value=datos["nombre_cotizacion"],
-                placeholder="Ej. Reparación de Chiller",
-            )
-
-        st.markdown("### Cliente")
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            cliente_nombre = st.text_input("Nombre del cliente", value=datos["cliente_nombre"])
-        with col_c2:
-            cliente_empresa = st.text_input("Empresa / Inmueble", value=datos["cliente_empresa"])
-
-        col_c3, col_c4, col_c5 = st.columns(3)
-        with col_c3:
-            cliente_contacto = st.text_input("Persona de contacto (Atención)", value=datos["cliente_contacto"])
-        with col_c4:
-            cliente_telefono = st.text_input("Teléfono del cliente", value=datos["cliente_telefono"])
-        with col_c5:
-            cliente_correo = st.text_input("Correo del cliente", value=datos["cliente_correo"])
-
-        st.markdown("### Persona que cotiza")
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            cotiza_nombre = st.text_input("Nombre de quien cotiza", value=datos["cotiza_nombre"])
-        with col_p2:
-            cotiza_puesto = st.text_input("Puesto", value=datos["cotiza_puesto"])
-
-        col_p3, col_p4 = st.columns(2)
-        with col_p3:
-            cotiza_telefono = st.text_input("Teléfono de quien cotiza", value=datos["cotiza_telefono"])
-        with col_p4:
-            cotiza_correo = st.text_input("Correo de quien cotiza", value=datos["cotiza_correo"])
-
-        st.session_state.datos_cotizacion.update(
-            {
-                "folio": folio.strip(),
-                "fecha": fecha,
-                "cliente_nombre": cliente_nombre.strip(),
-                "cliente_empresa": cliente_empresa.strip(),
-                "cliente_contacto": cliente_contacto.strip(),
-                "cliente_telefono": cliente_telefono.strip(),
-                "cliente_correo": cliente_correo.strip(),
-                "cotiza_nombre": cotiza_nombre.strip(),
-                "cotiza_puesto": cotiza_puesto.strip(),
-                "cotiza_telefono": cotiza_telefono.strip(),
-                "cotiza_correo": cotiza_correo.strip(),
-                "nombre_cotizacion": nombre_cotizacion.strip(),
-            }
-        )
-
-
-# =========================================================
-# UI - CAPTURA DE CONCEPTOS
-# =========================================================
-def render_selector_preciario():
-    st.markdown("## 2. Captura de Conceptos")
-
-    with st.container(border=True):
-        usar_preciario_besco = st.toggle(
-            "Habilitar Preciario BESCO",
-            value=st.session_state.toggle_preciario_besco,
-            key="toggle_preciario_besco",
-            help="Activa esta opción para seleccionar conceptos directamente del Preciario BESCO.",
-        )
-
-        origen_concepto = "Captura manual"
-        clave_preciario = ""
-        tipo_servicio = "Servicio"
-        descripcion = ""
-        unidad = "PZA"
-        precio_unitario = DEFAULT_PRECIO
-
-        if usar_preciario_besco:
-            try:
-                df_preciario = obtener_preciario_besco()
-
-                if df_preciario.empty:
-                    st.warning("El Preciario BESCO está vacío.")
-                    usar_preciario_besco = False
-                else:
-                    columnas_region = detectar_columnas_region(df_preciario)
-
-                    if not columnas_region:
-                        st.warning(
-                            "No se detectaron columnas de precio o región en el Preciario BESCO. Se habilitará captura manual."
-                        )
-                        usar_preciario_besco = False
-                    else:
-                        origen_concepto = "Preciario BESCO"
-
-                        centro_idx = 0
-                        for i, col in enumerate(columnas_region):
-                            if "CENTRO" in str(col).upper():
-                                centro_idx = i
-                                break
-
-                        col_reg, col_busq = st.columns([1, 2])
-                        with col_reg:
-                            region_seleccionada = st.selectbox(
-                                "📍 Región de Tarifas",
-                                options=columnas_region,
-                                index=centro_idx if centro_idx < len(columnas_region) else 0,
-                            )
-
-                        with col_busq:
-                            busqueda = st.text_input(
-                                "🔍 Buscador (escribe clave o concepto):"
-                            ).strip().lower()
-
-                        df_filtrado = df_preciario.copy()
-
-                        if busqueda:
-                            mascara = (
-                                df_filtrado["clave"].astype(str).str.lower().str.contains(busqueda, na=False)
-                                | df_filtrado["descripcion"].astype(str).str.lower().str.contains(busqueda, na=False)
-                            )
-                            df_filtrado = df_filtrado[mascara].copy()
-
-                        if df_filtrado.empty:
-                            st.warning("No hay coincidencias para la búsqueda ingresada.")
-                        else:
-                            df_filtrado["opcion_display"] = (
-                                df_filtrado["clave"].astype(str).str.strip()
-                                + " - "
-                                + df_filtrado["descripcion"].astype(str).str.strip()
-                            )
-
-                            opcion_seleccionada = st.selectbox(
-                                "Selecciona un concepto:",
-                                options=df_filtrado["opcion_display"].tolist(),
-                            )
-
-                            fila = df_filtrado[df_filtrado["opcion_display"] == opcion_seleccionada].iloc[0]
-
-                            clave_preciario = str(fila.get("clave", "S/C")).strip()
-                            tipo_servicio = str(fila.get("tipo_servicio", "Servicio")).strip() or "Servicio"
-                            descripcion = str(fila.get("descripcion", "")).strip()
-                            unidad = str(fila.get("unidad", "S/C")).strip() or "S/C"
-
-                            precio_unitario = parse_float(fila.get(region_seleccionada, 0), DEFAULT_PRECIO)
-
-                            col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
-                            with col_b1:
-                                st.text_input("Clave / Item", value=clave_preciario, disabled=True)
-                            with col_b2:
-                                st.text_input("Tipo de servicio", value=tipo_servicio, disabled=True)
-                            with col_b3:
-                                st.text_input("Unidad", value=unidad, disabled=True)
-
-                            st.text_area(
-                                "Descripción de producto o servicio",
-                                value=descripcion,
-                                height=90,
-                                disabled=True,
-                            )
-
-                            precio_unitario = st.number_input(
-                                "Precio Unitario Base ($)",
-                                min_value=0.00,
-                                value=float(precio_unitario),
-                                step=0.01,
-                                format="%.2f",
-                                help="Puedes ajustar manualmente el precio base antes de agregar el concepto.",
-                            )
-
-            except Exception as e:
-                st.error(f"Error al cargar el Preciario BESCO: {e}")
-                st.info("Se habilitará automáticamente el modo de captura manual.")
-                usar_preciario_besco = False
-                origen_concepto = "Captura manual"
-
-        if not usar_preciario_besco:
-            origen_concepto = "Captura manual"
-            st.info("Modo de captura manual habilitado.")
-
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col1:
-                tipo_servicio = st.selectbox("Tipo de servicio", MANUAL_TIPOS_SERVICIO)
-            with col2:
-                descripcion = st.text_area("Descripción detallada", height=90)
-            with col3:
-                unidad = st.selectbox("Unidad", MANUAL_UNIDADES)
-
-            precio_unitario = st.number_input(
-                "Precio unitario ($)",
-                min_value=0.00,
-                value=0.00,
-                step=0.01,
-                format="%.2f",
-            )
-
-        st.markdown("### Cálculo Financiero")
-        col4, col5, col6, col7 = st.columns([1, 1, 1, 1])
-
-        with col4:
-            cantidad = st.number_input(
-                "Cantidad",
-                min_value=0.1,
-                value=DEFAULT_CANTIDAD,
-                step=1.0,
-                format="%.2f",
-            )
-
-        utilidad_default = UTILIDAD_PRECIARIO if usar_preciario_besco else DEFAULT_UTILIDAD_MANUAL
-        utilidad_help = (
-            "Cuando el Preciario BESCO está habilitado, la utilidad se fija automáticamente en 0%."
-            if usar_preciario_besco
-            else "Captura el porcentaje de utilidad deseado para la cotización manual."
-        )
-
-        with col5:
-            utilidad_pct = st.number_input(
-                "Utilidad (%)",
-                min_value=0.00,
-                value=float(utilidad_default),
-                step=0.50,
-                format="%.2f",
-                disabled=usar_preciario_besco,
-                help=utilidad_help,
-            )
-
-        if usar_preciario_besco:
-            utilidad_pct = UTILIDAD_PRECIARIO
-
-        utilidad_monto_total = calcular_utilidad_monto(precio_unitario, utilidad_pct) * cantidad
-        precio_venta = calcular_precio_venta(precio_unitario, utilidad_pct)
-        importe_total = round(precio_venta * cantidad, 2)
-
-        with col6:
-            st.metric("Precio Venta Unitario", formatear_moneda(precio_venta))
-        with col7:
-            st.metric("Importe Total", formatear_moneda(importe_total))
-
-        cinfo1, cinfo2, cinfo3 = st.columns(3)
-        with cinfo1:
-            st.info(f"**Origen del concepto:** {origen_concepto}")
-        with cinfo2:
-            st.info(f"**Utilidad total estimada:** {formatear_moneda(utilidad_monto_total)}")
-        with cinfo3:
-            st.info(f"**Cantidad capturada:** {cantidad:,.2f}")
-
-        if st.button("➕ Agregar concepto a la cotización", use_container_width=True, type="primary"):
-            errores = validar_concepto(descripcion, unidad, cantidad, precio_unitario)
-
-            if errores:
-                for error in errores:
-                    st.warning(error)
-            else:
-                nuevo_concepto = {
-                    "Item": clave_preciario if clave_preciario else "S/C",
-                    "Tipo de servicio": tipo_servicio,
-                    "Concepto": descripcion.strip(),
-                    "Unidad": unidad.strip(),
-                    "Cantidad": round(float(cantidad), 2),
-                    "PU Base": round(float(precio_unitario), 2),
-                    "Utilidad (%)": round(float(utilidad_pct), 2),
-                    "Precio Venta": round(float(precio_venta), 2),
-                    "Importe": round(float(importe_total), 2),
-                }
-                st.session_state.conceptos_cotizacion.append(nuevo_concepto)
-                st.success("Concepto agregado correctamente.")
-                st.rerun()
-
-
-# =========================================================
 # UI - CONDICIONES EDITABLES POR FOLIO
 # =========================================================
 def render_condiciones_editables():
@@ -1182,7 +741,7 @@ def render_condiciones_editables():
                 persistir_condiciones_folio(folio_key, DEFAULT_CONDICIONES, "Base Besco")
                 st.rerun()
 
-        # Autosave en cada rerun
+        # autosave en cada rerun
         persistir_condiciones_folio(
             folio_key,
             st.session_state.editor_condiciones,
@@ -1316,6 +875,160 @@ def main():
 
 if __name__ == "__main__":
     main()
+    "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS, TRABAJOS ADICIONALES SERAN COTIZADOS POR SEPARADO."
+)
 
-from datetime import date
+PLANTILLAS_CONDICIONES = {
+    "Base Besco": DEFAULT_CONDICIONES,
+    "Suministro": (
+        "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES.\n"
+        "- SE REQUIERE ORDEN DE COMPRA O CORREO DE AUTORIZACIÓN PARA PROGRAMAR EL SUMINISTRO.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- PRECIOS SUJETOS A DISPONIBILIDAD DE INVENTARIO Y CAMBIOS DE FABRICANTE SIN PREVIO AVISO."
+    ),
+    "Servicio": (
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LAS ACTIVIDADES.\n"
+        "- LOS TRABAJOS SE PROGRAMARÁN DE ACUERDO CON LA DISPONIBILIDAD OPERATIVA Y DE ACCESO AL SITIO.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- TRABAJOS ADICIONALES O FUERA DE ALCANCE SERÁN COTIZADOS POR SEPARADO."
+    ),
+    "Instalación": (
+        "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES, SALVO EXISTENCIA EN STOCK.\n"
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LAS ACTIVIDADES.\n"
+        "- EL CLIENTE DEBERÁ PROPORCIONAR ACCESO, ENERGÍA Y ÁREA LIBRE PARA LA EJECUCIÓN DE LOS TRABAJOS.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS."
+    ),
+    "Mantenimiento Preventivo": (
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA PROGRAMAR EL SERVICIO.\n"
+        "- LOS EQUIPOS DEBERÁN ESTAR DISPONIBLES Y CON ACCESO LIBRE PARA EJECUTAR LAS ACTIVIDADES.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- REFACCIONES O CORRECTIVOS DETECTADOS DURANTE EL SERVICIO SERÁN COTIZADOS POR SEPARADO."
+    ),
+    "Mantenimiento Correctivo": (
+        "- EL TIEMPO DE ENTREGA DE MATERIAL O REFACCIONES SERÁ DE 15 DÍAS HÁBILES, SUJETO A DISPONIBILIDAD.\n"
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LOS TRABAJOS.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS.\n"
+        "- EL PRECIO CUBRE ÚNICAMENTE EL ALCANCE DESCRITO; TRABAJOS ADICIONALES SERÁN COTIZADOS POR SEPARADO."
+    ),
+    "Obra / Proyecto": (
+        "- EL TIEMPO DE ENTREGA DE MATERIALES SERÁ DE 15 DÍAS HÁBILES O CONFORME A PROGRAMA APROBADO.\n"
+        "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACIÓN, PEDIDO O CONTRATO PARA INICIAR LOS TRABAJOS.\n"
+        "- CUALQUIER CAMBIO DE ALCANCE, VOLÚMENES O INGENIERÍA SERÁ COTIZADO POR SEPARADO.\n"
+        "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS."
+    ),
+}
 
+
+# =========================================================
+# ESTADO
+# =========================================================
+def get_default_datos_cotizacion():
+    return {
+        "folio": "",
+        "fecha": date.today(),
+        "cliente_nombre": "",
+        "cliente_empresa": "",
+        "cliente_contacto": "",
+        "cliente_telefono": "",
+        "cliente_correo": "",
+        "cotiza_nombre": "",
+        "cotiza_puesto": "",
+        "cotiza_telefono": "",
+        "cotiza_correo": "",
+        "nombre_cotizacion": "",
+    }
+
+
+def init_session_state():
+    if "conceptos_cotizacion" not in st.session_state:
+        st.session_state.conceptos_cotizacion = []
+
+    if "usar_preciario_besco" not in st.session_state:
+        st.session_state.usar_preciario_besco = True
+
+    if "toggle_preciario_besco" not in st.session_state:
+        st.session_state.toggle_preciario_besco = st.session_state.usar_preciario_besco
+
+    if "datos_cotizacion" not in st.session_state:
+        st.session_state.datos_cotizacion = get_default_datos_cotizacion()
+
+    if "condiciones_cotizacion" not in st.session_state:
+        st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
+
+    if "condiciones_por_folio" not in st.session_state:
+        st.session_state.condiciones_por_folio = {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES}
+
+    if "plantilla_por_folio" not in st.session_state:
+        st.session_state.plantilla_por_folio = {BORRADOR_FOLIO_KEY: "Base Besco"}
+
+    if "folio_condiciones_cargado" not in st.session_state:
+        st.session_state.folio_condiciones_cargado = BORRADOR_FOLIO_KEY
+
+    if "editor_condiciones" not in st.session_state:
+        st.session_state.editor_condiciones = DEFAULT_CONDICIONES
+
+    if "selector_plantilla_condiciones" not in st.session_state:
+        st.session_state.selector_plantilla_condiciones = "Base Besco"
+
+    if "mensaje_exito" not in st.session_state:
+        st.session_state.mensaje_exito = ""
+
+    if "mensaje_error" not in st.session_state:
+        st.session_state.mensaje_error = ""
+
+
+def reset_cotizacion():
+    st.session_state.conceptos_cotizacion = []
+    st.session_state.datos_cotizacion = get_default_datos_cotizacion()
+    st.session_state.condiciones_cotizacion = DEFAULT_CONDICIONES
+    st.session_state.condiciones_por_folio = {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES}
+    st.session_state.plantilla_por_folio = {BORRADOR_FOLIO_KEY: "Base Besco"}
+    st.session_state.folio_condiciones_cargado = BORRADOR_FOLIO_KEY
+    st.session_state.editor_condiciones = DEFAULT_CONDICIONES
+    st.session_state.selector_plantilla_condiciones = "Base Besco"
+    st.session_state.mensaje_exito = ""
+    st.session_state.mensaje_error = ""
+
+
+# =========================================================
+# HELPERS GENERALES
+# =========================================================
+def formatear_moneda(valor):
+    return f"${float(valor):,.2f}"
+
+
+def parse_float(value, default=0.0):
+    if value is None:
+        return default
+
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    text = str(value).strip()
+    if text == "":
+        return default
+
+    text = (
+        text.replace("$", "")
+        .replace(",", "")
+        .replace("MXN", "")
+        .replace("mxn", "")
+        .replace(" ", "")
+    )
+    text = re.sub(r"[^0-9\\.\\-]", "", text)
+
+    try:
+        return float(text)
+    except ValueError:
+        return default
+
+
+def limpiar_texto_pdf(texto):
+    if not texto:
+        return ""
+
+    texto = str(texto)
+    reemplazos = {
+        "•": "-",
+        "“": '"',
+        "”": '"',
