@@ -173,11 +173,12 @@ def apply_light_styles() -> None:
 
 
 # =========================================================
-# HELPERS
+# FUNCIONES AUXILIARES
 # =========================================================
 def get_status_class(status: str) -> str:
     if status.strip().lower() == "activo":
         return "status-active"
+
     return "status-soon"
 
 
@@ -211,7 +212,10 @@ def render_summary(modules: List[PortalModule]) -> None:
 def render_module(module: PortalModule) -> None:
     status_class = get_status_class(module.status)
 
-    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="module-box">',
+        unsafe_allow_html=True
+    )
 
     st.markdown(
         f"""
@@ -236,7 +240,10 @@ def render_module(module: PortalModule) -> None:
             use_container_width=True
         )
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True
+    )
 
 
 def render_modules(modules: List[PortalModule]) -> None:
@@ -246,6 +253,7 @@ def render_modules(modules: List[PortalModule]) -> None:
 
 def render_footer() -> None:
     st.divider()
+
     st.markdown(
         """
         <div class="footer-text">
@@ -269,4 +277,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-``
