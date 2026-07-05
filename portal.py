@@ -65,6 +65,14 @@ MODULES: List[PortalModule] = [
         enabled=True,
         status="Activo",
     ),
+    PortalModule(
+        path="pages/06_Reporte_Fotografico_Contratos.py",
+        label="Reporte Fotográfico por Contrato",
+        icon="📷",
+        description="Reporte fotográfico configurable por contrato, alcance, evidencias y envío por correo.",
+        enabled=True,
+        status="Activo",
+    ),
 ]
 
 
