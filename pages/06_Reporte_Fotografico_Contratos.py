@@ -86,68 +86,47 @@ ALCANCES_POR_CONTRATO = {
         {
             "numero": 1,
             "momento": "Arribo",
-            "actividad": (
-                "Presentarse con gerente encargado. Confirmar OT/folio "
-                "y alcance de visita."
-            ),
+            "actividad": "Presentarse con gerente encargado. Confirmar OT/folio y alcance de visita.",
         },
         {
             "numero": 2,
             "momento": "Seguridad",
-            "actividad": (
-                "Induccion rapida: zonas restringidas, riesgos, energia, "
-                "alturas y agua."
-            ),
+            "actividad": "Induccion rapida: zonas restringidas, riesgos, energia, alturas y agua.",
         },
         {
             "numero": 3,
             "momento": "Reconocimiento",
-            "actividad": (
-                "Recorrido inicial por areas aplicables segun CHECK LIST."
-            ),
+            "actividad": "Recorrido inicial por areas aplicables segun CHECK LIST.",
         },
         {
             "numero": 4,
             "momento": "Priorizacion",
-            "actividad": (
-                "Ordenar actividades: seguridad, operacion critica, "
-                "correctivos visibles y preventivos."
-            ),
+            "actividad": "Ordenar actividades: seguridad, operacion critica, correctivos visibles y preventivos.",
         },
         {
             "numero": 5,
             "momento": "Ejecucion",
-            "actividad": (
-                "Realizar mantenimiento o inspeccion por codigo y especialidad."
-            ),
+            "actividad": "Realizar mantenimiento o inspeccion por codigo y especialidad.",
         },
         {
             "numero": 6,
             "momento": "Desviaciones",
-            "actividad": (
-                "Documentar hallazgos con causa, impacto, material y recomendacion."
-            ),
+            "actividad": "Documentar hallazgos con causa, impacto, material y recomendacion.",
         },
         {
             "numero": 7,
             "momento": "Limpieza y pruebas",
-            "actividad": (
-                "Retirar residuos, normalizar areas y probar equipos intervenidos."
-            ),
+            "actividad": "Retirar residuos, normalizar areas y probar equipos intervenidos.",
         },
         {
             "numero": 8,
             "momento": "Cierre con sucursal",
-            "actividad": (
-                "Revisar hallazgos, pendientes, evidencias y cierre con sucursal."
-            ),
+            "actividad": "Revisar hallazgos, pendientes, evidencias y cierre con sucursal.",
         },
         {
             "numero": 9,
             "momento": "Reporte",
-            "actividad": (
-                "Actualizar CHECK LIST, hojas por area y resumen KPI."
-            ),
+            "actividad": "Actualizar CHECK LIST, hojas por area y resumen KPI.",
         },
     ],
     "MacStore": [
@@ -288,11 +267,11 @@ def aplicar_estilos():
 # =========================================================
 # UTILIDADES
 # =========================================================
-def limpiar_texto(texto):
+def normalizar_texto(texto):
     if texto is None:
         return ""
 
-    texto = str(texto)
+    valor = str(texto)
 
     reemplazos = {
         "á": "a",
@@ -322,354 +301,344 @@ def limpiar_texto(texto):
     }
 
     for original, nuevo in reemplazos.items():
-        texto = texto.replace(original, nuevo)
+        valor = valor.replace(original, nuevo)
 
-    return texto
+    return valor
 
 
-def limpiar_nombre_archivo(nombre):
+def crear_nombre_archivo(nombre):
+    valor = normalizar_texto(str(nombre))
+
     invalidos = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", "(", ")", "&"]
 
-    lim*io = limpiar_texto(str(nombre))
+    for*caracter in invalidos:
+        val*r = valor.replace(caracter, "_")
 
- *  for caracter in invalidos:
-     *  limpio = limpio.replace(caracter* "_")
-
-    limpio = limpio.replace*" ", "_")
-
-    return limpio
+*   valor = valor.replace(" ", "_")*
+    return valor
 
 
-def*dividir_texto(texto, max_chars=90)*
-    palabras = limpiar_texto(text*).split()
+def dividir_te*to(texto, max_chars=90):
+    palab*as = normalizar_texto(texto).split*)
     lineas = []
-    line*_actual = ""
+    linea_actual*= ""
 
-    for palabra in p*labras:
-        if len(linea_actua*) + len(palabra) + 1 <= max_chars:*            if linea_actual:
-     *          linea_actual += " " + pa*abra
-            else:
-           *    linea_actual = palabra
-       *else:
-            lineas.append(li*ea_actual)
-            linea_actua* = palabra
+    for palabra in palabras:*        if len(linea_actual) + len*palabra) + 1 <= max_chars:
+       *    if linea_actual:
+             *  linea_actual += " " + palabra
+  *         else:
+                lin*a_actual = palabra
+        else:
+ *          lineas.append(linea_actu*l)
+            linea_actual = pala*ra
 
     if linea_actual:
- *      lineas.append(linea_actual)
-*    return lineas
+        l*neas.append(linea_actual)
+
+    ret*rn lineas
 
 
-def comprimir_*magen_a_temp(uploaded_file):
-    u*loaded_file.seek(0)
+def comprimir_imagen_a*temp(uploaded_file):
+    uploaded_*ile.seek(0)
 
-    imagen = *mage.open(uploaded_file).convert("*GB")
-    imagen.thumbnail(MAX_IMAG*_SIZE)
-
-    temp_img = tempfile.Na*edTemporaryFile(delete=False, suff*x=".jpg")
+    imagen = Image.op*n(uploaded_file).convert("RGB")
+  * imagen.thumbnail(MAX_IMAGE_SIZE)
+*    temp_img = tempfile.NamedTempo*aryFile(delete=False, suffix=".jpg*)
     temp_img.close()
 
-  * imagen.save(
-        temp_img.nam*,
-        format="JPEG",
-        q*ality=IMAGE_QUALITY,
-        optim*ze=True
-    )
+    imagen*save(
+        temp_img.name,
+     *  format="JPEG",
+        quality=I*AGE_QUALITY,
+        optimize=True*    )
 
-    return temp_img*name
-
-
-def archivo_cargado(uploade*_file):
-    return uploaded_file i* not None
+    return temp_img.name
 
 
-# ====================*==================================*=
+*ef existe_archivo(uploaded_file):
+*   return uploaded_file is not Non*
+
+
+# =============================*===========================
 # PDF
-# ========================*================================
-d*f encabezado_pdf(c, titulo):
-    y*= 750
+* =================================*=======================
+def encabe*ado_pdf(c, titulo):
+    y = 750
 
-    c.setFillColor(colors.H*xColor("#1E3A5F"))
-    c.setFont("*elvetica-Bold", 15)
-    c.drawStri*g(MARGIN_LEFT, y, limpiar_texto(ti*ulo))
-
+ *  c.setFillColor(colors.HexColor("*1E3A5F"))
+    c.setFont("Helvetica*Bold", 15)
+    c.drawString(MARGIN*LEFT, y, normalizar_texto(titulo))*
     y -= 18
 
-    c.setFillC*lor(colors.HexColor("#5B6573"))
-  * c.setFont("Helvetica", 9)
-    fec*a_generado = datetime.now().strfti*e("%d/%m/%Y %H:%M:%S")
-    c.drawS*ring(MARGIN_LEFT, y, f"Generado el*{fecha_generado}")
+    c.setFillColor(c*lors.HexColor("#5B6573"))
+    c.se*Font("Helvetica", 9)
+    fecha_gen*rado = datetime.now().strftime("%d*%m/%Y %H:%M:%S")
+    c.drawString(*ARGIN_LEFT, y, f"Generado el {fech*_generado}")
 
     y -= 20
 
- *  c.setStrokeColor(colors.HexColor*"#D9E2EC"))
-    c.line(MARGIN_LEFT* y, PDF_WIDTH - MARGIN_RIGHT, y)
+    c.s*tStrokeColor(colors.HexColor("#D9E*EC"))
+    c.line(MARGIN_LEFT, y, P*F_WIDTH - MARGIN_RIGHT, y)
 
-*   y -= 25
+    y *= 25
 
     return y
 
 
-def nue*a_pagina(c, y, espacio=120):
-    i* y < espacio:
-        c.showPage()*        y = encabezado_pdf(c, "REP*RTE FOTOGRAFICO - CONTINUACION")
+def nueva_pag*na(c, y, espacio=120):
+    if y < *spacio:
+        c.showPage()
+     *  y = encabezado_pdf(c, "REPORTE F*TOGRAFICO - CONTINUACION")
 
-*   return y
+    re*urn y
 
 
-def titulo_seccion(c* titulo, y):
-    y = nueva_pagina(*, y, 80)
+def titulo_seccion(c, titu*o, y):
+    y = nueva_pagina(c, y, *0)
 
-    c.setFont("Helvetica*Bold", 13)
-    c.setFillColor(colo*s.HexColor("#1E3A5F"))
-    c.drawS*ring(MARGIN_LEFT, y, limpiar_texto*titulo))
+    c.setFont("Helvetica-Bold"* 13)
+    c.setFillColor(colors.Hex*olor("#1E3A5F"))
+    c.drawString(*ARGIN_LEFT, y, normalizar_texto(ti*ulo))
 
     y -= 18
 
-    return *
+    return y
 
-
-def linea_pdf(c, etiqueta, valo*, y):
-    y = nueva_pagina(c, y, 7*)
-
-    c.setFont("Helvetica-Bold",*9)
-    c.setFillColor(colors.HexCo*or("#1E3A5F"))
-    c.drawString(MA*GIN_LEFT, y, limpiar_texto(f"{etiq*eta}:"))
+*def linea_pdf(c, etiqueta, valor, *):
+    y = nueva_pagina(c, y, 70)
+*    c.setFont("Helvetica-Bold", 9)*    c.setFillColor(colors.HexColor*"#1E3A5F"))
+    c.drawString(MARGI*_LEFT, y, normalizar_texto(f"{etiq*eta}:"))
 
     c.setFont("Helvetica*, 9)
     c.setFillColor(colors.bla*k)
-    c.drawString(MARGIN_LEFT + *25, y, limpiar_texto(valor))
+    c.drawString(MARGIN_LEFT + *25, y, normalizar_texto(valor))
 
-    * -= 15
-
-    return y
-
-
-def bloque_*exto_pdf(c, titulo, texto, y):
-   *y = titulo_seccion(c, titulo, y)
-
-*   if not texto:
-        texto = "*in informacion capturada."
-
-    c.*etFont("Helvetica", 9)
-    c.setFi*lColor(colors.black)
-
-    for line* in dividir_texto(texto):
-        * = nueva_pagina(c, y, 70)
-        *.drawString(MARGIN_LEFT, y, limpia*_texto(linea))
-        y -= 13
-
-  * y -= 10
+ *  y -= 15
 
     return y
 
 
-def image*_pdf(c, titulo, uploaded_file, y):*    if uploaded_file is None:
-    *   return y
+def bloq*e_texto_pdf(c, titulo, texto, y):
+*   y = titulo_seccion(c, titulo, y*
 
-    y = nueva_pagina(*, y, 240)
+    if not texto:
+        texto * "Sin informacion capturada."
 
-    c.setFont("Helvetic*-Bold", 10)
-    c.setFillColor(col*rs.HexColor("#1E3A5F"))
-    c.draw*tring(MARGIN_LEFT, y, limpiar_text*(titulo))
+   *c.setFont("Helvetica", 9)
+    c.se*FillColor(colors.black)
+
+    for l*nea in dividir_texto(texto):
+     *  y = nueva_pagina(c, y, 70)
+     *  c.drawString(MARGIN_LEFT, y, nor*alizar_texto(linea))
+        y -= *3
 
     y -= 10
 
-    temp_p*th = None
+    return y
+
+
+def*imagen_pdf(c, titulo, uploaded_fil*, y):
+    if uploaded_file is None*
+        return y
+
+    y = nueva_p*gina(c, y, 240)
+
+    c.setFont("He*vetica-Bold", 10)
+    c.setFillCol*r(colors.HexColor("#1E3A5F"))
+    *.drawString(MARGIN_LEFT, y, normal*zar_texto(titulo))
+
+    y -= 10
+
+ *  temp_path = None
 
     try:
-        temp_p*th = comprimir_imagen_a_temp(uploa*ed_file)
-        img_reader = Imag*Reader(temp_path)
+     *  temp_path = comprimir_imagen_a_t*mp(uploaded_file)
+        img_read*r = ImageReader(temp_path)
 
-        img_w, *mg_h = img_reader.getSize()
+      * img_w, img_h = img_reader.getSize*)
 
-     *  ancho_max = 250
-        alto_max*= 160
+        ancho_max = 250
+       *alto_max = 160
 
-        ratio = min(ancho_m*x / img_w, alto_max / img_h)
+        ratio = mi*(ancho_max / img_w, alto_max / img*h)
 
-    *   draw_w = img_w * ratio
-        *raw_h = img_h * ratio
+        draw_w = img_w * ratio*        draw_h = img_h * ratio
 
-        y -* draw_h + 8
+  *     y -= draw_h + 8
 
-        c.drawImage(
-*           img_reader,
-           *MARGIN_LEFT,
-            y,
-      *     width=draw_w,
-            hei*ht=draw_h,
-            preserveAsp*ctRatio=True,
-            mask="au*o"
+        c.dr*wImage(
+            img_reader,
+  *         MARGIN_LEFT,
+            *,
+            width=draw_w,
+      *     height=draw_h,
+            pr*serveAspectRatio=True,
+           *mask="auto"
         )
 
-        y -= 18
+        y -* 18
 
-   *except Exception as error:
-       *c.setFont("Helvetica", 8)
-        *.setFillColor(colors.red)
-        *.drawString(
-            MARGIN_LE*T,
+    except Exception as error*
+        c.setFont("Helvetica", 8)*        c.setFillColor(colors.red)*        c.drawString(
+            *ARGIN_LEFT,
             y - 20,
-           *limpiar_texto(f"No se pudo inserta* imagen: {error}")
-        )
-     *  y -= 40
+  *         normalizar_texto(f"No se *udo insertar imagen: {error}")
+   *    )
+        y -= 40
 
-    finally:
-        if*temp_path and os.path.exists(temp_*ath):
-            try:
-           *    os.remove(temp_path)
-         *  except Exception:
-              * pass
+    finally*
+        if temp_path and os.path.*xists(temp_path):
+            try:*                os.remove(temp_pat*)
+            except Exception:
+  *             pass
 
     return y
 
 
-def crear_pd*(
+*ef crear_pdf(
     contrato,
-    folio,
-    fec*a_ejecucion,
-    sucursal,
-    dir*ccion,
+    fo*io,
+    fecha_ejecucion,
+    sucur*al,
+    direccion,
     ciudad,
-    oficina,
-  * tecnico,
-    supervisor,
-    tipo*servicio,
-    estatus_final,
-    a*cance_items,
-    evidencias_por_it*m,
+   *oficina,
+    tecnico,
+    supervis*r,
+    tipo_servicio,
+    estatus_*inal,
+    alcance_items,
+    evide*cias_por_item,
     observaciones,
-    df_mater*ales,
-    destinatarios,
+*   df_materiales,
+    destinatario*,
 ):
-    te*p_pdf = tempfile.NamedTemporaryFil*(delete=False, suffix=".pdf")
-    *df_path = temp_pdf.name
-    temp_p*f.close()
+    temp_pdf = tempfile.Named*emporaryFile(delete=False, suffix=*.pdf")
+    pdf_path = temp_pdf.nam*
+    temp_pdf.close()
 
-    c = canvas.Canvas(p*f_path, pagesize=letter)
+    c = can*as.Canvas(pdf_path, pagesize=lette*)
 
-    y = *ncabezado_pdf(c, "REPORTE FOTOGRAF*CO POR CONTRATO")
+    y = encabezado_pdf(c, "REPO*TE FOTOGRAFICO POR CONTRATO")
 
-    y = titulo_*eccion(c, "Datos generales", y)
+   *y = titulo_seccion(c, "Datos gener*les", y)
 
- *  y = linea_pdf(c, "Contrato", con*rato, y)
-    y = linea_pdf(c, "Fol*o / Ticket / OT", folio, y)
-    y * linea_pdf(c, "Fecha de ejecucion"* fecha_ejecucion.strftime("%d/%m/%*"), y)
-    y = linea_pdf(c, "Sucur*al / Inmueble", sucursal, y)
-    y*= linea_pdf(c, "Direccion", direcc*on if direccion else "-", y)
-    y*= linea_pdf(c, "Ciudad", ciudad if*ciudad else "-", y)
-    y = linea_*df(c, "Oficina responsable", ofici*a if oficina else "-", y)
-    y = *inea_pdf(c, "Tecnico asignado", te*nico, y)
-    y = linea_pdf(c, "Sup*rvisor", supervisor if supervisor *lse "-", y)
-    y = linea_pdf(c, "*ipo de servicio", tipo_servicio, y*
-    y = linea_pdf(c, "Estatus fin*l", estatus_final, y)
+    y = linea_pdf(c, "Co*trato", contrato, y)
+    y = linea*pdf(c, "Folio / Ticket / OT", foli*, y)
+    y = linea_pdf(c, "Fecha d* ejecucion", fecha_ejecucion.strft*me("%d/%m/%Y"), y)
+    y = linea_p*f(c, "Sucursal / Inmueble", sucurs*l, y)
+    y = linea_pdf(c, "Direcc*on", direccion if direccion else "*", y)
+    y = linea_pdf(c, "Ciudad*, ciudad if ciudad else "-", y)
+  * y = linea_pdf(c, "Oficina respons*ble", oficina if oficina else "-",*y)
+    y = linea_pdf(c, "Tecnico a*ignado", tecnico, y)
+    y = linea*pdf(c, "Supervisor", supervisor if*supervisor else "-", y)
+    y = li*ea_pdf(c, "Tipo de servicio", tipo*servicio, y)
+    y = linea_pdf(c, *Estatus final", estatus_final, y)
+*    y -= 8
 
-    y -= 8
-*    y = titulo_seccion(c, "Alcance*y evidencias", y)
+    y = titulo_seccion*c, "Alcance y evidencias", y)
 
-    for item in*alcance_items:
-        numero = it*m["numero"]
-        momento = item*"momento"]
-        actividad = ite*["actividad"]
+   *for item in alcance_items:
+       *numero = item["numero"]
+        mo*ento = item["momento"]
+        act*vidad = item["actividad"]
 
-        y = nueva_p*gina(c, y, 160)
+       *y = nueva_pagina(c, y, 160)
 
-        y = linea*pdf(c, "Renglon", str(numero), y)
-*       y = linea_pdf(c, "Momento",*momento, y)
-        y = bloque_tex*o_pdf(c, "Actividad critica", acti*idad, y)
+     *  y = linea_pdf(c, "Renglon", str(*umero), y)
+        y = linea_pdf(c* "Momento", momento, y)
+        y * bloque_texto_pdf(c, "Actividad cr*tica", actividad, y)
 
-        evidencia = evid*ncias_por_item.get(numero, {})
+        evid*ncia = evidencias_por_item.get(num*ro, {})
 
-  *     y = imagen_pdf(c, f"{numero} * {momento} - Antes 1", evidencia.g*t("antes_1"), y)
-        y = imagen_pdf(c, f"{numero} - {momento} - Antes 2", evidencia.get("antes_2"), y)
-        y = imagen_pdf(c, f"{numero} - {momento} - Despues 1", evidencia.get("despues_1"), y)
-        y = imagen_pdf(c, f"{numero} - {momento} - Despues 2", evidencia.get("despues_2"), y)
+        y = imagen_pdf(c,*f"{numero} - {momento} - Antes 1",*evidencia.get("antes_1"), y)
+     *  y = imagen_pdf(c, f"{numero} - {*omento} - Antes 2", evidencia.get(*antes_2"), y)
+        y = imagen_p*f(c, f"{numero} - {momento} - Desp*es 1", evidencia.get("despues_1"),*y)
+        y = imagen_pdf(c, f"{nu*ero} - {momento} - Despues 2", evi*encia.get("despues_2"), y)
 
-    if df_materiales is not None and not df_materiales.empty:
-        y = titulo_seccion(c, "Materiales utilizados", y)
+    if*df_materiales is not None and not *f_materiales.empty:
+        y = ti*ulo_seccion(c, "Materiales utiliza*os", y)
 
-        for _, row in df_materiales.iterrows():
-            cantidad = str(row.get("Cantidad", "")).strip()
-            descripcion_material = str(row.get("Descripcion", "")).strip()
+        for _, row in df_*ateriales.iterrows():
+            *antidad = str(row.get("Cantidad", *")).strip()
+            descripcio*_material = str(row.get("Descripci*n", "")).strip()
 
-            if descripcion_material:
-                y = linea_pdf(
-                    c,
-                    "Material",
-                    f"{cantidad} - {descripcion_material}",
-                    y
+            if d*scripcion_material:
+              * y = linea_pdf(
+                  * c,
+                    "Material"*
+                    f"{cantidad} * {descripcion_material}",
+        *           y
                 )
 
-    y = bloque_texto_pdf(c, "Observaciones", observaciones, y)
+  * y = bloque_texto_pdf(c, "Observac*ones", observaciones, y)
 
-    y = bloque_texto_pdf(
+    y = *loque_texto_pdf(
         c,
-        "Destinatarios configurados",
-        "\n".join(destinatarios) if destinatarios else "Sin destinatarios configurados.",
+      * "Destinatarios configurados",
+   *    "\n".join(destinatarios) if de*tinatarios else "Sin destinatarios*configurados.",
         y
     )
 
-    y = nueva_pagina(c, y, 80)
+ *  y = nueva_pagina(c, y, 80)
 
-    c.setStrokeColor(colors.HexColor("#D9E2EC"))
-    c.line(MARGIN_LEFT, y, PDF_WIDTH - MARGIN_RIGHT, y)
+    *.setStrokeColor(colors.HexColor("#*9E2EC"))
+    c.line(MARGIN_LEFT, y* PDF_WIDTH - MARGIN_RIGHT, y)
 
-    y -= 18
+   *y -= 18
 
-    c.setFont("Helvetica", 8)
-    c.setFillColor(colors.HexColor("#7B8794"))
+    c.setFont("Helvetica"* 8)
+    c.setFillColor(colors.HexC*lor("#7B8794"))
     c.drawString(
-        MARGIN_LEFT,
+*       MARGIN_LEFT,
         y,
-        "Sistema Operativo - Grupo Besco | Reporte generado automaticamente"
+   *    "Sistema Operativo - Grupo Bes*o | Reporte generado automaticamen*e"
     )
 
     c.save()
 
-    return pdf_path
+    return*pdf_path
 
 
-# =========================================================
+# =====================*==================================*
 # CORREO
-# =========================================================
-def enviar_correo(
+# ======================*==================================*def enviar_correo(
     pdf_path,
-    contrato,
+ *  contrato,
     folio,
-    sucursal,
+    sucursa*,
     oficina,
-    nombre_archivo,
-    correos_extra,
-    fecha_ejecucion,
+    nombre_archivo,*    correos_extra,
+    fecha_ejecu*ion,
     destinatarios_base,
 ):
-    try:
-        if "EMAIL_SENDER" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
-            return False, "Faltan EMAIL_SENDER o EMAIL_PASSWORD en Secrets."
+  * try:
+        if "EMAIL_SENDER" no* in st.secrets or "EMAIL_PASSWORD"*not in st.secrets:
+            ret*rn False, "Faltan EMAIL_SENDER o E*AIL_PASSWORD en Secrets."
 
-        remitente = st.secrets["EMAIL_SENDER"]
+       *remitente = st.secrets["EMAIL_SENDER"]
         password = st.secrets["EMAIL_PASSWORD"]
 
-        extras = []
+        extras =*[]
 
         if correos_extra:
-            extras = [
+    *       extras = [
                 correo.strip()
-                for correo in correos_extra.split(",")
-                if correo.strip()
-            ]
+                for *orreo in correos_extra.split(",")
+*               if correo.strip()
+ *          ]
 
-        destinatarios = list(set(destinatarios_base + extras))
+        destinatarios*= list(set(destinatarios_base + ex*ras))
 
-        msg = EmailMessage()
-        msg["Subject"] = limpiar_texto(
-            f"Reporte Fotografico BESCO: {contrato} | TK: {folio} | Of: {oficina}"
+        msg = EmailMessage(*
+        msg["Subject"] = normaliz*r_texto(
+            f"Reporte Fot*grafico BESCO: {contrato} | TK: {f*lio} | Of: {oficina}"
         )
-        msg["From"] = remitente
+  *     msg["From"] = remitente
         msg["To"] = ", ".join(destinatarios)
 
         msg.set_content(
-            limpiar_texto(
+            normalizar_texto(
                 f"Se ha generado un nuevo reporte fotografico desde el Portal de Soluciones BESCO.\n\n"
                 f"Contrato: {contrato}\n"
                 f"Fecha de ejecucion: {fecha_ejecucion}\n"
@@ -721,16 +690,16 @@ def validar_reporte(contrato, folio, sucursal, tecnico, evidencias_por_item, alc
         momento = item["momento"]
         evidencia = evidencias_por_item.get(numero, {})
 
-        if not archivo_cargado(evidencia.get("antes_1")):
+        if not existe_archivo(evidencia.get("antes_1")):
             faltantes.append(f"{momento} - Antes 1")
 
-        if not archivo_cargado(evidencia.get("antes_2")):
+        if not existe_archivo(evidencia.get("antes_2")):
             faltantes.append(f"{momento} - Antes 2")
 
-        if not archivo_cargado(evidencia.get("despues_1")):
+        if not existe_archivo(evidencia.get("despues_1")):
             faltantes.append(f"{momento} - Despues 1")
 
-        if not archivo_cargado(evidencia.get("despues_2")):
+        if not existe_archivo(evidencia.get("despues_2")):
             faltantes.append(f"{momento} - Despues 2")
 
     return faltantes
@@ -869,14 +838,19 @@ def main():
                 "despues_2": despues_2,
             }
 
-            cargadas = sum(
-                [
-                    1 if antes_1 else 0,
-                    1 if antes_2 else 0,
-                    1 if despues_1 else 0,
-                    1 if despues_2 else 0,
-                ]
-            )
+            cargadas = 0
+
+            if antes_1:
+                cargadas += 1
+
+            if antes_2:
+                cargadas += 1
+
+            if despues_1:
+                cargadas += 1
+
+            if despues_2:
+                cargadas += 1
 
             if cargadas == 4:
                 st.success("Evidencia completa para este renglon.")
@@ -988,7 +962,7 @@ def main():
                     destinatarios=destinatarios_base,
                 )
 
-                nombre_pdf = limpiar_nombre_archivo(
+                nombre_pdf = crear_nombre_archivo(
                     f"Reporte_Fotografico_{contrato}_{folio}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                 )
 
