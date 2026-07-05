@@ -1,15 +1,17 @@
+import os
+import tempfile
+import smtplib
+from datetime import datetime
+from email.message import EmailMessage
+
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF
-from datetime import datetime
 from PIL import Image
-import os
-import smtplib
-from email.message import EmailMessage
-import io
-import tempfile
-import contextlib
-from pypdf import PdfWriter
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
 
 
 # =========================================================
@@ -19,12 +21,12 @@ PAGE_TITLE = "Reporte Fotográfico por Contrato"
 PAGE_ICON = "📷"
 LAYOUT = "centered"
 
-MAX_FOTOS_RECOMENDADAS = 6
-MAX_IMAGE_SIZE = (1100, 1100)
-IMAGE_QUALITY = 65
+PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT = letter
+PDF_MARGIN_LEFT = 45
+PDF_MARGIN_RIGHT = 45
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-LOGO_PATH = os.path.join(ROOT_DIR, "logo besco 2026.jpeg")
+MAX_IMAGE_SIZE = (1000, 1000)
+IMAGE_QUALITY = 65
 
 
 # =========================================================
@@ -271,7 +273,7 @@ def aplicar_estilos_ligeros() -> None:
 # =========================================================
 # UTILIDADES
 # =========================================================
-def limpiar_texto(texto):
+def limpiar_texto(texto: str) -> str:
     if not isinstance(texto, str):
         texto = str(texto)
 
@@ -286,24 +288,12 @@ def limpiar_texto(texto):
         "\u200b": "",
         "\r": "",
         "°": " grados",
-        "é": "e",
-        "É": "E",
-        "á": "a",
-        "Á": "A",
-        "í": "i",
-        "Í": "I",
-        "ó": "o",
-        "Ó": "O",
-        "ú": "u",
-        "Ú": "U",
-        "ñ": "n",
-        "Ñ": "N",
     }
 
     for k, v in reemplazos.items():
         texto = texto.replace(k, v)
 
-    return texto.encode("latin-1", "replace").decode("latin-1")
+    return texto
 
 
 def limpiar_nombre_archivo(nombre: str) -> str:
@@ -319,497 +309,408 @@ def limpiar_nombre_archivo(nombre: str) -> str:
     retu*n limpio
 
 
-@contextlib.contextmana*er
-def archivo_temporal(suffix=".j*g"):
-    tmp = tempfile.NamedTempo*aryFile(delete=False, suffix=suffi*)
-    tmp.close()
+def dividir_texto(texto* str, max_chars: int = 85) -> list*
+    palabras = str(texto).split()*    lineas = []
+    linea_actual =*""
 
-    try:
-      * yield tmp.name
-    finally:
-     *  with contextlib.suppress(FileNot*oundError):
-            os.remove(*mp.name)
+    for palabra in palabras:
+ *      if len(linea_actual) + len(p*labra) + 1 <= max_chars:
+         *  if linea_actual:
+               *linea_actual += " " + palabra
+    *       else:
+                linea*actual = palabra
+        else:
+   *        lineas.append(linea_actual*
+            linea_actual = palabr*
 
+    if linea_actual:
+        lin*as.append(linea_actual)
 
-def comprimir_imagen_a_*emp(file_obj, max_size=MAX_IMAGE_S*ZE, quality=IMAGE_QUALITY):
-    fi*e_obj.seek(0)
-
-    img = Image.ope*(file_obj).convert("RGB")
-    img.*humbnail(max_size)
-
-    tmp = temp*ile.NamedTemporaryFile(delete=Fals*, suffix=".jpg")
-    tmp.close()
-
-*   img.save(
-        tmp.name,
-   *    format="JPEG",
-        quality*quality,
-        optimize=True
-   *)
-
-    return tmp.name
+    retur* lineas
 
 
-def conta*_archivos(archivos) -> int:
-    if*not archivos:
-        return 0
+def obtener_descripcion_*lcance(seccion: str) -> str:
+    f*r alcance in ALCANCES:
+        if *lcance["Seccion"] == seccion:
+    *       return alcance["Descripcion"]
 
-  * return len(archivos)
-
-
-def mostra*_estado_archivos(nombre: str, arch*vos) -> None:
-    cantidad = conta*_archivos(archivos)
-
-    if cantid*d == 0:
-        st.caption(f"{nomb*e}: sin archivos cargados.")
-    e*if cantidad <= MAX_FOTOS_RECOMENDA*AS:
-        st.success(f"{nombre}:*{cantidad} archivo(s) cargado(s)."*
-    else:
-        st.warning(
-   *        f"{nombre}: {cantidad} arc*ivo(s) cargado(s). "
-            f*Para celular se recomienda máximo *MAX_FOTOS_RECOMENDADAS}."
-        *
+    return ""
 
 
-def obtener_descripcion_alcance*seccion: str) -> str:
-    for alca*ce in ALCANCES:
-        if alcance*"Seccion"] == seccion:
-           *return alcance["Descripcion"]
-
-   *return ""
+def obtener_alc*nce_label(alcance: dict) -> str:
+ *  return f"{alcance['Seccion']} - *alcance['Descripcion']}"
 
 
-def obtener_alcance_la*el(alcance: dict) -> str:
-    retu*n f"{alcance['Seccion']} - {alcanc*['Descripcion']}"
-
-
-def obtener_se*cion_desde_label(label: str) -> st*:
+def obt*ner_seccion_desde_label(label: str* -> str:
     if " - " in label:
-        r*turn label.split(" - ")[0].strip()*
+  *     return label.split(" - ")[0].*trip()
+
     return label.strip()
 
+*def contar_archivos(archivos) -> i*t:
+    if not archivos:
+        re*urn 0
 
-# ====*==================================*=================
-# PDF
-# ========*==================================*=============
-class ReporteContrat*PDF(FPDF):
-    def __init__(self):*        super().__init__()
-       *self.section_count = 1
-        sel*.set_auto_page_break(auto=True, ma*gin=25)
-        self.set_margins(l*ft=12, top=12, right=12)
+    return len(archivos)
 
-    def *eader(self):
-        try:
-        *   if os.path.exists(LOGO_PATH):
- *              img_logo = Image.ope*(LOGO_PATH).convert("RGB")
-       *        orig_w, orig_h = img_logo.*ize
-                final_h = 18
- *              final_w = orig_w * (*inal_h / orig_h)
 
-                *ith archivo_temporal(suffix=".jpg"* as tmp_logo:
-                    *mg_logo.thumbnail((800, 800))
-    *               img_logo.save(tmp_l*go, format="JPEG", quality=75, opt*mize=True)
-                    sel*.image(tmp_logo, x=12, y=8, w=fina*_w, h=final_h)
-        except Exce*tion:
-            pass
+*ef mostrar_estado_archivos(nombre:*str, archivos) -> None:
+    cantid*d = contar_archivos(archivos)
 
-        se*f.set_font("Arial", "B", 11)
-     *  self.set_text_color(30, 58, 95)
-*       self.set_xy(0, 10)
-        *elf.cell(
-            self.w - 12,*            6,
-            limpiar*texto("REPORTE FOTOGRAFICO POR CON*RATO"),
-            0,
-           *1,
-            "R"
+   *if cantidad == 0:
+        st.capti*n(f"{nombre}: sin archivos cargado*.")
+    elif cantidad <= 6:
+      * st.success(f"{nombre}: {cantidad}*archivo(s) cargado(s).")
+    else:*        st.warning(
+            f"*nombre}: {cantidad} archivo(s) car*ado(s). "
+            "Para celula* se recomienda máximo 6 fotos por *ección."
         )
 
-    *   self.set_font("Arial", "", 8)
- *      self.set_text_color(120, 120* 120)
-        self.set_x(0)
-      * self.cell(
-            self.w - 1*,
-            5,
-            limpi*r_texto(f"Emision: {datetime.now()*strftime('%d/%m/%Y %H:%M')}"),
-   *        0,
-            1,
-        *   "R"
-        )
 
-        self.set*draw_color(226, 24, 54)
-        se*f.set_line_width(0.6)
-        self*line(12, 31, self.w - 12, 31)
-    *   self.set_line_width(0.2)
-      * self.set_draw_color(0, 0, 0)
-    *   self.ln(24)
+def comprimir*imagen_a_temp(uploaded_file) -> st*:
+    uploaded_file.seek(0)
 
-    def footer(sel*):
-        self.set_y(-15)
-       *self.set_draw_color(200, 200, 200)*        self.line(12, self.get_y()* self.w - 12, self.get_y())
+    i*age = Image.open(uploaded_file)
 
-     *  self.set_font("Arial", "I", 8)
- *      self.set_text_color(150, 150* 150)
-        self.cell(
-         *  0,
-            8,
-            li*piar_texto(f"Pagina {self.page_no(*} | Documento confidencial BESCO")*
-            0,
-            0,
-   *        "C"
-        )
+ *  if image.mode in ("RGBA", "P"):
+*       image = image.convert("RGB"*
+    else:
+        image = image.c*nvert("RGB")
 
-    def add*custom_section(self, title):
-     *  if self.get_y() > 245:
-         *  self.add_page()
+    image.thumbnail(*AX_IMAGE_SIZE)
 
-        self.se*_fill_color(30, 58, 95)
-        se*f.set_font("Arial", "B", 10)
-     *  self.set_text_color(255, 255, 25*)
+    temp_img = tem*file.NamedTemporaryFile(delete=Fal*e, suffix=".jpg")
+    temp_img.clo*e()
 
-        self.cell(4, 8, "", 0, *, "L", fill=True)
-
-        self.se*_fill_color(226, 24, 54)
-        s*lf.cell(2, 8, "", 0, 0, "L", fill=*rue)
-
-        self.set_fill_color(*0, 58, 95)
-        self.cell(
-    *       self.w - 30,
-            8,*            limpiar_texto(f"  {sel*.section_count}. {title.upper()}")*
-            0,
-            1,
-   *        "L",
-            fill=True*        )
-
-        self.section_co*nt += 1
-        self.ln(3)
-       *self.set_text_color(0, 0, 0)
-
-    *ef tabla_info(self, datos):
-        self.set_font("Arial", "", 9)
-
-        col_label = 52
-        col_valor = self.w - 24 - col_label
-
-        for etiqueta, valor in datos:
-            self.set_font("Arial", "B", 9)
-            self.set_fill_color(240, 243, 248)
-            self.cell(col_label, 7, limpiar_texto(etiqueta), 1, 0, "L", fill=True)
-
-            self.set_font("Arial", "", 9)
-            self.set_fill_color(255, 255, 255)
-            self.cell(col_valor, 7, limpiar_texto(str(valor)), 1, 1, "L", fill=True)
-
-        self.ln(3)
-
-    def bloque_texto(self, etiqueta, contenido, color_fondo=(248, 248, 252)):
-        if not contenido:
-            return
-
-        if self.get_y() > 245:
-            self.add_page()
-
-        self.set_font("Arial", "B", 9)
-        self.set_fill_color(30, 58, 95)
-        self.set_text_color(255, 255, 255)
-        self.cell(0, 6, limpiar_texto(f"  {etiqueta}"), 0, 1, "L", fill=True)
-
-        self.set_font("Arial", "", 9)
-        self.set_text_color(40, 40, 40)
-        self.set_fill_color(*color_fondo)
-        self.multi_cell(0, 5, limpiar_texto(contenido), border=1, fill=True)
-        self.ln(3)
-
-        self.set_text_color(0, 0, 0)
-
-    def tabla_materiales(self, df_mat):
-        if df_mat is None or df_mat.empty:
-            return
-
-        if "Descripción" not in df_mat.columns:
-            return
-
-        df_c = df_mat.dropna(subset=["Descripción"])
-
-        if df_c.empty:
-            return
-
-        if self.get_y() > 220:
-            self.add_page()
-
-        self.add_custom_section("Materiales utilizados")
-
-        self.set_font("Arial", "B", 9)
-        self.set_fill_color(30, 58, 95)
-        self.set_text_color(255, 255, 255)
-
-        self.cell(30, 7, "CANTIDAD", 1, 0, "C", fill=True)
-        self.cell(self.w - 54, 7, "DESCRIPCION", 1, 1, "C", fill=True)
-
-        self.set_text_color(0, 0, 0)
-        self.set_font("Arial", "", 9)
-
-        for idx, (_, row) in enumerate(df_c.iterrows()):
-            fill = idx % 2 == 0
-
-            if fill:
-                self.set_fill_color(245, 247, 252)
-            else:
-                self.set_fill_color(255, 255, 255)
-
-            self.cell(
-                30,
-                7,
-                limpiar_texto(str(row.get("Cantidad", ""))),
-                1,
-                0,
-                "C",
-                fill=fill
-            )
-
-            self.cell(
-                self.w - 54,
-                7,
-                limpiar_texto(str(row.get("Descripción", ""))),
-                1,
-                1,
-                "L",
-                fill=fill
-            )
-
-        self.ln(3)
-
-    def photo_grid(self, title, photos):
-        if not photos:
-            return
-
-        if self.get_y() > 250:
-            self.add_page()
-
-        self.set_font("Arial", "BI", 9)
-        self.set_text_color(30, 58, 95)
-        self.cell(0, 6, limpiar_texto(f"  Evidencia fotografica - {title}"), 0, 1, "L")
-        self.set_text_color(0, 0, 0)
-        self.ln(1)
-
-        max_w = 88
-        max_h = 62
-        pie_h = 5
-        gap_v = 4
-        fila_h = max_h + pie_h + gap_v
-        margen_x = 12
-        col_paso = 95
-
-        fotos_limitadas = photos[:MAX_FOTOS_RECOMENDADAS]
-        filas = [fotos_limitadas[i:i + 2] for i in range(0, len(fotos_limitadas), 2)]
-
-        foto_num = 0
-
-        for fila in filas:
-            if self.get_y() + fila_h > 272:
-                self.add_page()
-                self.set_font("Arial", "BI", 9)
-                self.set_text_color(30, 58, 95)
-                self.cell(0, 6, limpiar_texto(f"  Evidencia fotografica cont. - {title}"), 0, 1, "L")
-                self.set_text_color(0, 0, 0)
-                self.ln(1)
-
-            y_fila = self.get_y()
-
-            for col, foto in enumerate(fila):
-                foto_num += 1
-
-                try:
-                    tmp_img = comprimir_imagen_a_temp(
-                        foto,
-                        max_size=MAX_IMAGE_SIZE,
-                        quality=IMAGE_QUALITY
-                    )
-
-                    img = Image.open(tmp_img).convert("RGB")
-                    img_w, img_h = img.size
-
-                    escala = min(max_w / img_w, max_h / img_h)
-                    final_w = img_w * escala
-                    final_h = img_h * escala
-
-                    x_celda = margen_x + col * col_paso
-                    x_img = x_celda + (max_w - final_w) / 2
-                    y_img = y_fila + (max_h - final_h) / 2
-
-                    self.image(tmp_img, x=x_img, y=y_img, w=final_w, h=final_h)
-
-                    with contextlib.suppress(FileNotFoundError):
-                        os.remove(tmp_img)
-
-                    self.set_xy(x_celda, y_fila + max_h + 1)
-                    self.set_font("Arial", "I", 7)
-                    self.set_text_color(100, 100, 100)
-                    self.cell(
-                        max_w,
-                        pie_h - 1,
-                        limpiar_texto(f"Foto {foto_num} - {title}"),
-                        0,
-                        0,
-                        "C"
-                    )
-                    self.set_text_color(0, 0, 0)
-
-                except Exception:
-                    self.set_xy(margen_x + col * col_paso, y_fila)
-                    self.set_font("Arial", "I", 8)
-                    self.cell(
-                        max_w,
-                        max_h,
-                        limpiar_texto(f"[Error imagen {foto_num}]"),
-                        1,
-                        0,
-                        "C"
-                    )
-
-            self.set_y(y_fila + fila_h)
-
-        if len(photos) > MAX_FOTOS_RECOMENDADAS:
-            self.set_font("Arial", "I", 8)
-            self.set_text_color(120, 120, 120)
-            self.multi_cell(
-                0,
-                5,
-                limpiar_texto(
-                    f"Nota: Se integraron las primeras {MAX_FOTOS_RECOMENDADAS} fotos "
-                    f"de {len(photos)} para mantener ligero el reporte."
-                )
-            )
-            self.set_text_color(0, 0, 0)
-
-        self.ln(3)
-
-
-# =========================================================
-# GENERAR PDF
-# =========================================================
-def generar_pdf_reporte(
-    contrato,
-    folio,
-    fecha_ejecucion,
-    sucursal,
-    direccion,
-    ciudad,
-    oficina,
-    tecnico,
-    supervisor,
-    tipo_servicio,
-    estatus_final,
-    seccion,
-    descripcion,
-    actividades,
-    observaciones,
-    df_materiales,
-    evidencias,
-    correos_destino,
-):
-    pdf = ReporteContratoPDF()
-    pdf.add_page()
-
-    fecha_str = fecha_ejecucion.strftime("%d/%m/%Y")
-
-    pdf.add_custom_section("Datos generales")
-
-    datos_generales = [
-        ("Contrato", contrato),
-        ("Folio / Ticket / OT", folio),
-        ("Fecha de ejecucion", fecha_str),
-        ("Sucursal / Inmueble", sucursal if sucursal else "-"),
-        ("Direccion", direccion if direccion else "-"),
-        ("Ciudad", ciudad if ciudad else "-"),
-        ("Oficina responsable", oficina if oficina else "-"),
-        ("Tecnico asignado", tecnico if tecnico else "-"),
-        ("Supervisor", supervisor if supervisor else "-"),
-        ("Tipo de servicio", tipo_servicio),
-        ("Estatus final", estatus_final),
-    ]
-
-    pdf.tabla_info(datos_generales)
-
-    pdf.add_custom_section("Alcance del reporte")
-
-    datos_alcance = [
-        ("Seccion", seccion),
-        ("Descripcion", descripcion),
-    ]
-
-    pdf.tabla_info(datos_alcance)
-
-    pdf.bloque_texto("Actividades realizadas", actividades)
-    pdf.tabla_materiales(df_materiales)
-    pdf.bloque_texto("Observaciones", observaciones if observaciones else "Sin observaciones.")
-
-    pdf.add_custom_section("Evidencias fotograficas")
-
-    for nombre_evidencia, archivos in evidencias.items():
-        if archivos:
-            pdf.photo_grid(nombre_evidencia, archivos)
-
-    pdf.add_custom_section("Destinatarios")
-
-    pdf.bloque_texto(
-        "Correos configurados",
-        "\n".join(correos_destino) if correos_destino else "Sin destinatarios configurados."
+    image.save(
+        temp_*mg.name,
+        format="JPEG",
+  *     quality=IMAGE_QUALITY,
+      * optimize=True
     )
 
-    salida_pdf = pdf.output(dest="S")
-
-    if isinstance(salida_pdf, bytes):
-        pdf_bytes = salida_pdf
-    else:
-        pdf_bytes = salida_pdf.encode("latin-1", "replace")
-
-    return pdf_bytes, fecha_str
+    return t*mp_img.name
 
 
-# =========================================================
-# ENVÍO DE CORREO
-# =========================================================
-def enviar_correo_reporte(
-    pdf_bytes,
-    contrato,
-    folio,
-    sucursal,
-    oficina,
-    nombre_archivo,
-    correos_extra,
-    fecha_ejecucion,
-    lista_destinatarios,
-):
+# ==================*==================================*===
+# PDF - FUNCIONES
+# ==========*==================================*===========
+def dibujar_encabezado*pdf(c: canvas.Canvas, titulo: str)*-> int:
+    y = 750
+
+    c.setFill*olor(colors.HexColor("#1E3A5F"))
+ *  c.setFont("Helvetica-Bold", 15)
+*   c.drawString(45, y, limpiar_tex*o(titulo))
+
+    y -= 18
+
+    c.set*illColor(colors.HexColor("#5B6573"*)
+    c.setFont("Helvetica", 9)
+  * c.drawString(
+        45,
+       *y,
+        limpiar_texto(f"Generad* el {datetime.now().strftime('%d/%*/%Y %H:%M:%S')}")
+    )
+
+    y -= *0
+
+    c.setStrokeColor(colors.Hex*olor("#D9E2EC"))
+    c.line(45, y,*PDF_PAGE_WIDTH - 45, y)
+
+    y -= *5
+
+    return y
+
+
+def nueva_pagina*si_necesaria(c: canvas.Canvas, y: *nt, espacio_requerido: int = 120) *> int:
+    if y < espacio_requerid*:
+        c.showPage()
+        y =*dibujar_encabezado_pdf(c, "REPORTE*FOTOGRÁFICO - CONTINUACIÓN")
+
+    *eturn y
+
+
+def escribir_titulo_secc*on(c: canvas.Canvas, titulo: str, *: int) -> int:
+    y = nueva_pagin*_si_necesaria(c, y, 80)
+
+    c.set*ont("Helvetica-Bold", 13)
+    c.se*FillColor(colors.HexColor("#1E3A5F*))
+    c.drawString(45, y, limpiar*texto(titulo))
+
+    y -= 18
+
+    r*turn y
+
+
+def escribir_linea_pdf(c:*canvas.Canvas, etiqueta: str, valo*: str, y: int) -> int:
+    y = nue*a_pagina_si_necesaria(c, y, 70)
+
+ *  c.setFont("Helvetica-Bold", 9)
+ *  c.setFillColor(colors.HexColor("*1E3A5F"))
+    c.drawString(45, y, *impiar_texto(f"{etiqueta}:"))
+
+   *c.setFont("Helvetica", 9)
+    c.se*FillColor(colors.black)
+    c.draw*tring(170, y, limpiar_texto(str(va*or)))
+
+    y -= 15
+
+    return y
+
+*def escribir_bloque_texto_pdf(c: c*nvas.Canvas, titulo: str, texto: s*r, y: int) -> int:
+    y = escribi*_titulo_seccion(c, titulo, y)
+
+   *if not texto:
+        texto = "Sin*información capturada."
+
+    c.set*ont("Helvetica", 9)
+    c.setFillC*lor(colors.black)
+
+    lineas = di*idir_texto(texto, max_chars=90)
+
+ *  for linea in lineas:
+        y =*nueva_pagina_si_necesaria(c, y, 70*
+        c.drawString(45, y, limpi*r_texto(linea))
+        y -= 13
+
+ *  y -= 10
+
+    return y
+
+
+def dibu*ar_imagen_pdf(c: canvas.Canvas, ti*ulo: str, uploaded_file, y: int) -* int:
+    if uploaded_file is None*
+        return y
+
+    y = nueva_p*gina_si_necesaria(c, y, 240)
+
+    *.setFont("Helvetica-Bold", 10)
+   *c.setFillColor(colors.HexColor("#1*3A5F"))
+    c.drawString(45, y, li*piar_texto(titulo))
+
+    y -= 10
+
+*   temp_path = None
+
     try:
-        if "EMAIL_SENDER" not in st.secrets or "EMAIL_PASSWORD" not in st.secrets:
-            st.error(
-                "Error de configuración: No se encontraron EMAIL_SENDER o EMAIL_PASSWORD en Secrets."
+    *   temp_path = comprimir_imagen_a_*emp(uploaded_file)
+        image_r*ader = ImageReader(temp_path)
+
+   *    img_width, img_height = image_*eader.getSize()
+
+        ancho_max*= 250
+        alto_max = 160
+
+    *   ratio = min(ancho_max / img_wid*h, alto_max / img_height)
+
+       *draw_width = img_width * ratio
+   *    draw_height = img_height * rat*o
+
+        y -= draw_height + 8
+
+ *      c.drawImage(
+            ima*e_reader,
+            45,
+        *   y,
+            width=draw_width*
+            height=draw_height,
+ *          preserveAspectRatio=True*
+            mask="auto"
+        )*
+        y -= 18
+
+    except Excep*ion as error:
+        c.setFont("H*lvetica", 8)
+        c.setFillColo*(colors.red)
+        c.drawString(*5, y - 20, limpiar_texto(f"No se p*do insertar imagen: {error}"))
+   *    y -= 40
+
+    finally:
+        *f temp_path and os.path.exists(tem*_path):
+            try:
+         *      os.remove(temp_path)
+       *    except Exception:
+            *   pass
+
+    return y
+
+
+def crear_*df_reporte(
+    contrato: str,
+   *folio: str,
+    fecha_ejecucion,
+ *  sucursal: str,
+    direccion: st*,
+    ciudad: str,
+    oficina: st*,
+    tecnico: str,
+    supervisor* str,
+    tipo_servicio: str,
+    *status_final: str,
+    seccion: st*,
+    descripcion: str,
+    activi*ades: str,
+    observaciones: str,*    df_materiales: pd.DataFrame,
+ *  evidencias: dict,
+    destinatar*os: list,
+) -> str:
+    temp_pdf =*tempfile.NamedTemporaryFile(delete*False, suffix=".pdf")
+    pdf_path*= temp_pdf.name
+    temp_pdf.close*)
+
+    c = canvas.Canvas(pdf_path,*pagesize=letter)
+
+    y = dibujar_*ncabezado_pdf(c, "REPORTE FOTOGRÁF*CO POR CONTRATO")
+
+    y = escribi*_titulo_seccion(c, "Datos generale*", y)
+
+    y = escribir_linea_pdf(*, "Contrato", contrato, y)
+    y =*escribir_linea_pdf(c, "Folio / Tic*et / OT", folio, y)
+    y = escrib*r_linea_pdf(c, "Fecha de ejecución*, fecha_ejecucion.strftime("%d/%m/*Y"), y)
+    y = escribir_linea_pdf*c, "Sucursal / Inmueble", sucursal* y)
+    y = escribir_linea_pdf(c, *Dirección", direccion if direccion*else "-", y)
+    y = escribir_line*_pdf(c, "Ciudad", ciudad if ciudad*else "-", y)
+    y = escribir_line*_pdf(c, "Oficina responsable", ofi*ina if oficina else "-", y)
+    y * escribir_linea_pdf(c, "Técnico as*gnado", tecnico, y)
+    y = escrib*r_linea_pdf(c, "Supervisor", super*isor if supervisor else "-", y)
+  * y = escribir_linea_pdf(c, "Tipo d* servicio", tipo_servicio, y)
+    * = escribir_linea_pdf(c, "Estatus *inal", estatus_final, y)
+
+    y -=*8
+
+    y = escribir_titulo_seccion*c, "Alcance del servicio", y)
+
+   *y = escribir_linea_pdf(c, "Sección*, seccion, y)
+    y = escribir_lin*a_pdf(c, "Descripción", descripcio*, y)
+
+    y = escribir_bloque_text*_pdf(c, "Actividades realizadas", *ctividades, y)
+
+    if df_material*s is not None and not df_materiale*.empty:
+        y = escribir_titul*_seccion(c, "Materiales utilizados*, y)
+
+        for _, row in df_mat*riales.iterrows():
+            can*idad = str(row.get("Cantidad", "")*.strip()
+            descripcion_m*t = str(row.get("Descripción", "")*.strip()
+
+            if descripci*n_mat:
+                y = escribi*_linea_pdf(
+                    c,*                    "Material",
+  *                 f"{cantidad} - {d*scripcion_mat}",
+                 *  y
+                )
+
+        y -* 8
+
+    y = escribir_bloque_texto_*df(c, "Observaciones", observacion*s, y)
+
+    y = escribir_titulo_sec*ion(c, "Evidencias fotográficas", *)
+
+    hay_evidencias = False
+
+   *for nombre_evidencia, archivos in *videncias.items():
+        if arch*vos:
+            hay_evidencias = *rue
+
+            for index, archiv* in enumerate(archivos[:6], start=*):
+                if hasattr(arch*vo, "type") and archivo.type == "a*plication/pdf":
+                  * y = escribir_linea_pdf(
+         *              c,
+                 *      nombre_evidencia,
+          *             f"PDF adjunto registr*do: {archivo.name}",
+             *          y
+                    )
+*               else:
+             *      y = dibujar_imagen_pdf(
+    *                   c,
+            *           f"{nombre_evidencia} - *oto {index}",
+                    *   archivo,
+                      * y
+                    )
+
+        *   if len(archivos) > 6:
+         *      y = escribir_linea_pdf(
+    *               c,
+                *   nombre_evidencia,
+             *      f"Se integraron 6 de {len(ar*hivos)} archivos para mantener el *DF ligero.",
+                    y*                )
+
+    if not hay_*videncias:
+        y = escribir_li*ea_pdf(c, "Evidencias", "No se adj*ntaron evidencias.", y)
+
+    y = e*cribir_bloque_texto_pdf(
+        c*
+        "Destinatarios configurad*s",
+        "\n".join(destinatario*) if destinatarios else "Sin desti*atarios configurados.",
+        y
+*   )
+
+    y = nueva_pagina_si_nece*aria(c, y, 80)
+
+    c.setStrokeCol*r(colors.HexColor("#D9E2EC"))
+    *.line(45, y, PDF_PAGE_WIDTH - 45, *)
+
+    y -= 18
+
+    c.setFont("Hel*etica", 8)
+    c.setFillColor(colo*s.HexColor("#7B8794"))
+    c.drawS*ring(
+        45,
+        y,
+     *  "Sistema Operativo - Grupo Besco*| Reporte generado automáticamente*
+    )
+
+    c.save()
+
+    return p*f_path
+
+
+# =======================*=================================
+* CORREO
+# ========================*================================
+d*f enviar_correo_reporte(
+    pdf_p*th: str,
+    contrato: str,
+    fo*io: str,
+    sucursal: str,
+    of*cina: str,
+    nombre_archivo: str*
+    correos_extra: str,
+    fecha*ejecucion: str,
+    lista_destinat*rios: list,
+) -> tuple:
+    try:
+ *      if "EMAIL_SENDER" not in st.*ecrets or "EMAIL_PASSWORD" not in *t.secrets:
+            return (
+  *             False,
+              * "Faltan EMAIL_SENDER o EMAIL_PASS*ORD en Secrets."
             )
-            return False
 
-        remitente = st.secrets["EMAIL_SENDER"]
-        password = st.secrets["EMAIL_PASSWORD"]
+  *     remitente = st.secrets["EMAIL_SENDER"]
+        password = st.sec*ets["EMAIL_PASSWORD"]
 
-        extra = [
-            c.strip()
-            for c in correos_extra.split(",")
-            if c.strip()
-        ] if correos_extra else []
+        ext*a = []
+
+        if correos_extra:
+            extra = [
+                c.strip()
+                for c in correos_extra.split(",")
+                if c.strip()
+            ]
 
         destinatarios = list(set(lista_destinatarios + extra))
 
         msg = EmailMessage()
         msg["Subject"] = limpiar_texto(
-            f"Reporte Fotografico BESCO: {contrato} | TK: {folio} | Of: {oficina}"
+            f"Reporte Fotográfico BESCO: {contrato} | TK: {folio} | Of: {oficina}"
         )
         msg["From"] = remitente
         msg["To"] = ", ".join(destinatarios)
 
         msg.set_content(
             limpiar_texto(
-                f"Se ha generado un nuevo reporte fotografico desde el Portal de Soluciones BESCO.\n\n"
+                f"Se ha generado un nuevo reporte fotográfico desde el Portal de Soluciones BESCO.\n\n"
                 f"Contrato: {contrato}\n"
-                f"Fecha Ejecucion: {fecha_ejecucion}\n"
+                f"Fecha de ejecución: {fecha_ejecucion}\n"
                 f"Oficina: {oficina}\n"
                 f"Folio / Ticket / OT: {folio}\n"
                 f"Sucursal / Inmueble: {sucursal}\n\n"
@@ -817,36 +718,36 @@ def enviar_correo_reporte(
             )
         )
 
-        msg.add_attachment(
-            pdf_bytes,
-            maintype="application",
-            subtype="pdf",
-            filename=nombre_archivo
-        )
+        with open(pdf_path, "rb") as file:
+            msg.add_attachment(
+                file.read(),
+                maintype="application",
+                subtype="pdf",
+                filename=nombre_archivo
+            )
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(remitente, password)
             smtp.send_message(msg)
 
-        return True
+        return True, "Correo enviado correctamente."
 
     except Exception as error:
-        st.error(f"Error de conexión SMTP: {error}")
-        return False
+        return False, f"No se pudo enviar el correo: {error}"
 
 
 # =========================================================
-# VALIDACIONES
+# VALIDACIÓN
 # =========================================================
 def validar_campos_obligatorios(
-    contrato,
-    folio,
-    sucursal,
-    tecnico,
-    seccion,
-    actividades,
-    evidencias,
-):
+    contrato: str,
+    folio: str,
+    sucursal: str,
+    tecnico: str,
+    seccion: str,
+    actividades: str,
+    evidencias: dict,
+) -> list:
     faltantes = []
 
     if not contrato:
@@ -875,9 +776,9 @@ def validar_campos_obligatorios(
 
 
 # =========================================================
-# MAIN
+# INTERFAZ PRINCIPAL
 # =========================================================
-def main():
+def main() -> None:
     aplicar_estilos_ligeros()
 
     st.markdown(
@@ -906,6 +807,11 @@ def main():
         unsafe_allow_html=True
     )
 
+    if "contrato_reporte" not in st.session_state:
+        st.session_state["contrato_reporte"] = {}
+
+    form_state = st.session_state["contrato_reporte"]
+
     paso = st.radio(
         "Sección",
         [
@@ -917,11 +823,6 @@ def main():
         ],
         horizontal=False
     )
-
-    if "contrato_reporte" not in st.session_state:
-        st.session_state["contrato_reporte"] = {}
-
-    form_state = st.session_state["contrato_reporte"]
 
     contratos = list(CONTRATOS_CONFIG.keys())
 
@@ -1083,8 +984,6 @@ def main():
             unsafe_allow_html=True
         )
 
-        evidencias = {}
-
         st.markdown("### Evidencias obligatorias")
 
         for evidencia in EVIDENCIAS_OBLIGATORIAS:
@@ -1095,7 +994,6 @@ def main():
                 key=f"evidencia_{evidencia}"
             )
 
-            evidencias[evidencia] = archivos
             mostrar_estado_archivos(evidencia, archivos)
 
         st.markdown("### Evidencia documental")
@@ -1108,7 +1006,6 @@ def main():
                 key=f"evidencia_{evidencia}"
             )
 
-            evidencias[evidencia] = archivos
             mostrar_estado_archivos(evidencia, archivos)
 
         st.markdown("### Evidencias opcionales")
@@ -1121,12 +1018,9 @@ def main():
                 key=f"evidencia_{evidencia}"
             )
 
-            evidencias[evidencia] = archivos
             mostrar_estado_archivos(evidencia, archivos)
 
-        form_state["evidencias_keys_initialized"] = True
-
-        st.success("Evidencias cargadas temporalmente en la sesión de Streamlit.")
+        st.success("Evidencias cargadas temporalmente.")
 
     elif paso == "4. Observaciones y materiales":
         st.markdown(
@@ -1274,7 +1168,7 @@ def main():
         if generar:
             with st.spinner("Generando PDF y comprimiendo imágenes..."):
                 try:
-                    pdf_bytes, fecha_str = generar_pdf_reporte(
+                    pdf_path = crear_pdf_reporte(
                         contrato=contrato,
                         folio=folio,
                         fecha_ejecucion=fecha_ejecucion,
@@ -1292,16 +1186,16 @@ def main():
                         observaciones=observaciones,
                         df_materiales=df_materiales,
                         evidencias=evidencias,
-                        correos_destino=destinatarios_base,
+                        destinatarios=destinatarios_base,
                     )
 
                     nombre_pdf = limpiar_nombre_archivo(
                         f"Reporte_Fotografico_{contrato}_{seccion}_{folio}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                     )
 
-                    st.session_state["contrato_pdf_bytes"] = pdf_bytes
+                    st.session_state["contrato_pdf_path"] = pdf_path
                     st.session_state["contrato_nombre_pdf"] = nombre_pdf
-                    st.session_state["contrato_fecha_str"] = fecha_str
+                    st.session_state["contrato_fecha_str"] = fecha_ejecucion.strftime("%d/%m/%Y")
                     st.session_state["contrato_destinatarios"] = destinatarios_base
                     st.session_state["contrato_correo_extra"] = correos_extra
                     st.session_state["contrato_email_data"] = {
@@ -1317,17 +1211,18 @@ def main():
                     st.error(f"No se pudo generar el PDF: {error}")
                     st.exception(error)
 
-        if "contrato_pdf_bytes" in st.session_state:
-            pdf_bytes = st.session_state["contrato_pdf_bytes"]
+        if "contrato_pdf_path" in st.session_state:
+            pdf_path = st.session_state["contrato_pdf_path"]
             nombre_pdf = st.session_state["contrato_nombre_pdf"]
 
-            st.download_button(
-                "⬇️ Descargar PDF",
-                data=pdf_bytes,
-                file_name=nombre_pdf,
-                mime="application/pdf",
-                use_container_width=True
-            )
+            with open(pdf_path, "rb") as file:
+                st.download_button(
+                    "⬇️ Descargar PDF",
+                    data=file,
+                    file_name=nombre_pdf,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
             st.markdown(
                 """
@@ -1348,8 +1243,8 @@ def main():
                 email_data = st.session_state["contrato_email_data"]
 
                 with st.spinner("Enviando correo..."):
-                    enviado = enviar_correo_reporte(
-                        pdf_bytes=st.session_state["contrato_pdf_bytes"],
+                    enviado, mensaje = enviar_correo_reporte(
+                        pdf_path=st.session_state["contrato_pdf_path"],
                         contrato=email_data["contrato"],
                         folio=email_data["folio"],
                         sucursal=email_data["sucursal"],
@@ -1361,12 +1256,9 @@ def main():
                     )
 
                 if enviado:
-                    st.success("Reporte enviado correctamente por correo.")
+                    st.success(mensaje)
                 else:
-                    st.warning(
-                        "El PDF fue generado, pero no se pudo enviar el correo. "
-                        "Descárgalo y compártelo manualmente."
-                    )
+                    st.warning(mensaje)
 
     st.divider()
 
