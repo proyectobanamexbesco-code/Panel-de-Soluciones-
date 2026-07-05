@@ -254,280 +254,292 @@ def limpiar_texto(texto):
 def limpiar_nombre_archivo(nombre):
     invalidos = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", "(", ")", "&"]
 
-    *impio = limpiar_texto(str(nombre))*
-    for caracter in invalidos:
-  *     limpio = limpio.replace(carac*er, "_")
+    limpio = limpiar_texto(str(nombre))
 
-    limpio = limpio.repl*ce(" ", "_")
+    for caracter in invalidos:
+        limpio = limpio.replace(caracter, "_")
+
+    limpio = limpio.replace(" ", "_")
 
     return limpio
 
 
-*ef dividir_texto(texto, max_chars=*0):
-    palabras = limpiar_texto(t*xto).split()
+def dividir_texto(texto, max_chars=90):
+    palabras = limpiar_texto(texto).split()
     lineas = []
-    l*nea_actual = ""
+    linea_actual = ""
 
-    for palabra i* palabras:
-        if len(linea_ac*ual) + len(palabra) + 1 <= max_cha*s:
+    for palabra in palabras:
+        if len(linea_actual) + len(palabra) + 1 <= max_chars:
             if linea_actual:
-  *             linea_actual += " " +*palabra
+                linea_actual += " " + palabra
             else:
-        *       linea_actual = palabra
-    *   else:
-            lineas.append*linea_actual)
-            linea_ac*ual = palabra
+                linea_actual = palabra
+        else:
+            lineas.append(linea_actual)
+            linea_actual = palabra
 
-    if linea_actual*
-        lineas.append(linea_actua*)
+    if linea_actual:
+        lineas.append(linea_actual)
 
     return lineas
 
 
-def comprim*r_imagen_a_temp(uploaded_file):
-  * uploaded_file.seek(0)
+def comprimir_imagen_a_temp(uploaded_file):
+    uploaded_file.seek(0)
 
-    imagen*= Image.open(uploaded_file).conver*("RGB")
-    imagen.thumbnail(MAX_I*AGE_SIZE)
+    imagen = Image.open(uploaded_file).convert("RGB")
+    imagen.thumbnail(MAX_IMAGE_SIZE)
 
-    temp_img = tempfile*NamedTemporaryFile(delete=False, s*ffix=".jpg")
+    temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
     temp_img.close()
-*    imagen.save(
-        temp_img.*ame,
+
+    imagen.save(
+        temp_img.name,
         format="JPEG",
-      * quality=IMAGE_QUALITY,
-        op*imize=True
+        quality=IMAGE_QUALITY,
+        optimize=True
     )
 
-    return temp_*mg.name
+    return temp_img.name
 
 
-def contar_archivos(arch*vos):
+def contar_archivos(archivos):
     if not archivos:
-       *return 0
+        return 0
 
-    return len(archivos)*
+    return len(archivos)
 
-def mostrar_estado(nombre, archi*os):
-    cantidad = contar_archivo*(archivos)
+
+def mostrar_estado(nombre, archivos):
+    cantidad = contar_archivos(archivos)
 
     if cantidad == 0:
-*       st.caption(f"{nombre}: sin *rchivos cargados.")
-    elif canti*ad <= MAX_FOTOS_POR_SECCION:
-     *  st.success(f"{nombre}: {cantidad* archivo(s) cargado(s).")
-    else*
+        st.caption(f"{nombre}: sin archivos cargados.")
+    elif cantidad <= MAX_FOTOS_POR_SECCION:
+        st.success(f"{nombre}: {cantidad} archivo(s) cargado(s).")
+    else:
         st.warning(
-            f*{nombre}: {cantidad} archivo(s) ca*gado(s). "
-            f"Se integr*ran maximo {MAX_FOTOS_POR_SECCION}*para mantener ligero el PDF."
-    *   )
+            f"{nombre}: {cantidad} archivo(s) cargado(s). "
+            f"Se integraran maximo {MAX_FOTOS_POR_SECCION} para mantener ligero el PDF."
+        )
 
 
-def obtener_descripcion(sec*ion):
-    for sec, desc in ALCANCE*:
+def obtener_descripcion(seccion):
+    for sec, desc in ALCANCES:
         if sec == seccion:
-     *      return desc
+            return desc
 
     return ""
 
-*# ================================*========================
+
+# =========================================================
 # PDF
-# =*==================================*====================
-def encabezad*_pdf(c, titulo):
+# =========================================================
+def encabezado_pdf(c, titulo):
     y = 750
 
-    *.setFillColor(colors.HexColor("#1E*A5F"))
-    c.setFont("Helvetica-Bo*d", 15)
-    c.drawString(MARGIN_LE*T, y, limpiar_texto(titulo))
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.setFont("Helvetica-Bold", 15)
+    c.drawString(MARGIN_LEFT, y, limpiar_texto(titulo))
 
-    * -= 18
+    y -= 18
 
-    c.setFillColor(colors.*exColor("#5B6573"))
-    c.setFont(*Helvetica", 9)
-    fecha_generado * datetime.now().strftime("%d/%m/%Y*%H:%M:%S")
-    c.drawString(MARGIN*LEFT, y, f"Generado el {fecha_gene*ado}")
+    c.setFillColor(colors.HexColor("#5B6573"))
+    c.setFont("Helvetica", 9)
+    fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    c.drawString(MARGIN_LEFT, y, f"Generado el {fecha_generado}")
 
     y -= 20
 
-    c.setStro*eColor(colors.HexColor("#D9E2EC"))*    c.line(MARGIN_LEFT, y, PDF_WID*H - MARGIN_RIGHT, y)
+    c.setStrokeColor(colors.HexColor("#D9E2EC"))
+    c.line(MARGIN_LEFT, y, PDF_WIDTH - MARGIN_RIGHT, y)
 
     y -= 25
-*    return y
-
-
-def nueva_pagina(c,*y, espacio=120):
-    if y < espaci*:
-        c.showPage()
-        y =*encabezado_pdf(c, "REPORTE FOTOGRA*ICO - CONTINUACION")
-
-    return y*
-
-def titulo_seccion(c, titulo, y)*
-    y = nueva_pagina(c, y, 80)
-
- *  c.setFont("Helvetica-Bold", 13)
-*   c.setFillColor(colors.HexColor(*#1E3A5F"))
-    c.drawString(MARGIN*LEFT, y, limpiar_texto(titulo))
-
- *  y -= 18
 
     return y
 
 
-def line*_pdf(c, etiqueta, valor, y):
-    y*= nueva_pagina(c, y, 70)
+def nueva_pagina(c, y, espacio=120):
+    if y < espacio:
+        c.showPage()
+        y = encabezado_pdf(c, "REPORTE FOTOGRAFICO - CONTINUACION")
 
-    c.se*Font("Helvetica-Bold", 9)
-    c.se*FillColor(colors.HexColor("#1E3A5F*))
-    c.drawString(MARGIN_LEFT, y* limpiar_texto(f"{etiqueta}:"))
+    return y
 
- *  c.setFont("Helvetica", 9)
-    c.*etFillColor(colors.black)
-    c.dr*wString(MARGIN_LEFT + 125, y, limp*ar_texto(valor))
+
+def titulo_seccion(c, titulo, y):
+    y = nueva_pagina(c, y, 80)
+
+    c.setFont("Helvetica-Bold", 13)
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.drawString(MARGIN_LEFT, y, limpiar_texto(titulo))
+
+    y -= 18
+
+    return y
+
+
+def linea_pdf(c, etiqueta, valor, y):
+    y = nueva_pagina(c, y, 70)
+
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.drawString(MARGIN_LEFT, y, limpiar_texto(f"{etiqueta}:"))
+
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.black)
+    c.drawString(MARGIN_LEFT + 125, y, limpiar_texto(valor))
 
     y -= 15
 
-   *return y
+    return y
 
 
-def bloque_texto_pdf(c,*titulo, texto, y):
-    y = titulo_*eccion(c, titulo, y)
+def bloque_texto_pdf(c, titulo, texto, y):
+    y = titulo_seccion(c, titulo, y)
 
-    if not t*xto:
-        texto = "Sin informac*on capturada."
+    if not texto:
+        texto = "Sin informacion capturada."
 
-    c.setFont("Hel*etica", 9)
-    c.setFillColor(colo*s.black)
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.black)
 
-    for linea in dividir*texto(texto):
-        y = nueva_pa*ina(c, y, 70)
-        c.drawString*MARGIN_LEFT, y, limpiar_texto(line*))
+    for linea in dividir_texto(texto):
+        y = nueva_pagina(c, y, 70)
+        c.drawString(MARGIN_LEFT, y, limpiar_texto(linea))
         y -= 13
 
     y -= 10
 
- *  return y
+    return y
 
 
-def imagen_pdf(c, tit*lo, uploaded_file, y):
-    if uplo*ded_file is None:
-        return y*
+def imagen_pdf(c, titulo, uploaded_file, y):
+    if uploaded_file is None:
+        return y
+
     y = nueva_pagina(c, y, 240)
 
-*   c.setFont("Helvetica-Bold", 10)*    c.setFillColor(colors.HexColor*"#1E3A5F"))
-    c.drawString(MARGI*_LEFT, y, limpiar_texto(titulo))
+    c.setFont("Helvetica-Bold", 10)
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.drawString(MARGIN_LEFT, y, limpiar_texto(titulo))
 
-*   y -= 10
+    y -= 10
 
     temp_path = None
 
-*   try:
-        temp_path = compri*ir_imagen_a_temp(uploaded_file)
-  *     img_reader = ImageReader(temp*path)
+    try:
+        temp_path = comprimir_imagen_a_temp(uploaded_file)
+        img_reader = ImageReader(temp_path)
 
-        img_w, img_h = img_*eader.getSize()
+        img_w, img_h = img_reader.getSize()
 
-        ancho_max*= 250
+        ancho_max = 250
         alto_max = 160
 
-    *   ratio = min(ancho_max / img_w, *lto_max / img_h)
+        ratio = min(ancho_max / img_w, alto_max / img_h)
 
-        draw_w =*img_w * ratio
-        draw_h = img*h * ratio
+        draw_w = img_w * ratio
+        draw_h = img_h * ratio
 
-        y -= draw_h + 8*
+        y -= draw_h + 8
+
         c.drawImage(
-            *mg_reader,
-            MARGIN_LEFT*
+            img_reader,
+            MARGIN_LEFT,
             y,
-            width=*raw_w,
+            width=draw_w,
             height=draw_h,
-*           preserveAspectRatio=Tru*,
+            preserveAspectRatio=True,
             mask="auto"
-        *
+        )
 
         y -= 18
 
-    except Exce*tion as error:
-        c.setFont("*elvetica", 8)
-        c.setFillCol*r(colors.red)
-        c.drawString*
+    except Exception as error:
+        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.red)
+        c.drawString(
             MARGIN_LEFT,
-        *   y - 20,
-            limpiar_tex*o(f"No se pudo insertar imagen: {e*ror}")
+            y - 20,
+            limpiar_texto(f"No se pudo insertar imagen: {error}")
         )
         y -= 40
 
-*   finally:
-        if temp_path a*d os.path.exists(temp_path):
-     *      try:
-                os.remo*e(temp_path)
-            except Ex*eption:
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
                 pass
 
-    *eturn y
+    return y
 
 
 def crear_pdf(
-    contr*to,
+    contrato,
     folio,
-    fecha_ejecucion*
+    fecha_ejecucion,
     sucursal,
     direccion,
-    *iudad,
+    ciudad,
     oficina,
     tecnico,
- *  supervisor,
+    supervisor,
     tipo_servicio,
- *  estatus_final,
+    estatus_final,
     seccion,
-    *escripcion,
+    descripcion,
     actividades,
-    o*servaciones,
+    observaciones,
     df_materiales,
-  * evidencias,
+    evidencias,
     destinatarios,
-):*    temp_pdf = tempfile.NamedTempo*aryFile(delete=False, suffix=".pdf*)
+):
+    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf_path = temp_pdf.name
-   *temp_pdf.close()
+    temp_pdf.close()
 
-    c = canvas.C*nvas(pdf_path, pagesize=letter)
+    c = canvas.Canvas(pdf_path, pagesize=letter)
 
- *  y = encabezado_pdf(c, "REPORTE F*TOGRAFICO POR CONTRATO")
+    y = encabezado_pdf(c, "REPORTE FOTOGRAFICO POR CONTRATO")
 
-    y = *itulo_seccion(c, "Datos generales"* y)
+    y = titulo_seccion(c, "Datos generales", y)
 
-    y = linea_pdf(c, "Contrat*", contrato, y)
-    y = linea_pdf(*, "Folio / Ticket / OT", folio, y)*    y = linea_pdf(c, "Fecha de eje*ucion", fecha_ejecucion.strftime("*d/%m/%Y"), y)
-    y = linea_pdf(c,*"Sucursal / Inmueble", sucursal, y*
-    y = linea_pdf(c, "Direccion",*direccion if direccion else "-", y*
-    y = linea_pdf(c, "Ciudad", ci*dad if ciudad else "-", y)
-    y =*linea_pdf(c, "Oficina responsable"* oficina if oficina else "-", y)
- *  y = linea_pdf(c, "Tecnico asigna*o", tecnico, y)
-    y = linea_pdf(*, "Supervisor", supervisor if supe*visor else "-", y)
-    y = linea_p*f(c, "Tipo de servicio", tipo_serv*cio, y)
-    y = linea_pdf(c, "Esta*us final", estatus_final, y)
+    y = linea_pdf(c, "Contrato", contrato, y)
+    y = linea_pdf(c, "Folio / Ticket / OT", folio, y)
+    y = linea_pdf(c, "Fecha de ejecucion", fecha_ejecucion.strftime("%d/%m/%Y"), y)
+    y = linea_pdf(c, "Sucursal / Inmueble", sucursal, y)
+    y = linea_pdf(c, "Direccion", direccion if direccion else "-", y)
+    y = linea_pdf(c, "Ciudad", ciudad if ciudad else "-", y)
+    y = linea_pdf(c, "Oficina responsable", oficina if oficina else "-", y)
+    y = linea_pdf(c, "Tecnico asignado", tecnico, y)
+    y = linea_pdf(c, "Supervisor", supervisor if supervisor else "-", y)
+    y = linea_pdf(c, "Tipo de servicio", tipo_servicio, y)
+    y = linea_pdf(c, "Estatus final", estatus_final, y)
 
-    * -= 8
+    y -= 8
 
-    y = titulo_seccion(c, "*lcance del servicio", y)
-    y = l*nea_pdf(c, "Seccion", seccion, y)
-*   y = linea_pdf(c, "Descripcion",*descripcion, y)
+    y = titulo_seccion(c, "Alcance del servicio", y)
+    y = linea_pdf(c, "Seccion", seccion, y)
+    y = linea_pdf(c, "Descripcion", descripcion, y)
 
-    y = bloque_te*to_pdf(c, "Actividades realizadas"* actividades, y)
+    y = bloque_texto_pdf(c, "Actividades realizadas", actividades, y)
 
-    if df_materi*les is not None and not df_materia*es.empty:
-        y = titulo_secci*n(c, "Materiales utilizados", y)
+    if df_materiales is not None and not df_materiales.empty:
+        y = titulo_seccion(c, "Materiales utilizados", y)
 
-*       for _, row in df_materiales*iterrows():
-            cantidad =*str(row.get("Cantidad", "")).strip*)
-            descripcion_material*= str(row.get("Descripcion", "")).*trip()
+        for _, row in df_materiales.iterrows():
+            cantidad = str(row.get("Cantidad", "")).strip()
+            descripcion_material = str(row.get("Descripcion", "")).strip()
 
-            if descripcion*material:
-                y = line*_pdf(
+            if descripcion_material:
+                y = linea_pdf(
                     c,
-     *              "Material",
-        *           f"{cantidad} - {descrip*ion_material}",
-                  * y
+                    "Material",
+                    f"{cantidad} - {descripcion_material}",
+                    y
                 )
 
         y -= 8
@@ -883,7 +895,7 @@ def main():
 
     st.subheader("5. Generar PDF y enviar correo")
 
-    destinatarios_base = config["destinatarios"]
+    destinatarios_base = config["destinatarios"].copy()
 
     if "gerardo.mendez@besco.mx" not in destinatarios_base:
         destinatarios_base.append("gerardo.mendez@besco.mx")
