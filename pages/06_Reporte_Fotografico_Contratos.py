@@ -26,7 +26,12 @@ MARGIN_RIGHT = 45
 
 MAX_IMAGE_SIZE = (1000, 1000)
 IMAGE_QUALITY = 65
-MAX_FOTOS_POR_SECCION = 6
+
+TIPOS_SERVICIO = [
+    "Correctivo",
+    "Preventivo",
+    "Levantamiento",
+]
 
 
 st.set_page_config(
@@ -37,18 +42,11 @@ st.set_page_config(
 
 
 # =========================================================
-# CONTRATOS
+# CONFIGURACION DE CONTRATOS
 # =========================================================
 CONTRATOS_CONFIG = {
     "Santander": {
         "destinatarios": ["gerardo.mendez@besco.mx"],
-        "tipos_servicio": [
-            "Preventivo",
-            "Correctivo",
-            "Emergencia",
-            "Visita tecnica",
-            "Levantamiento",
-        ],
         "estatus": [
             "Servicio concluido",
             "Servicio concluido con observaciones",
@@ -59,13 +57,6 @@ CONTRATOS_CONFIG = {
     },
     "MacStore": {
         "destinatarios": ["gerardo.mendez@besco.mx"],
-        "tipos_servicio": [
-            "Preventivo",
-            "Correctivo",
-            "Instalacion",
-            "Reparacion",
-            "Levantamiento",
-        ],
         "estatus": [
             "Servicio concluido",
             "Servicio concluido con observaciones",
@@ -76,14 +67,6 @@ CONTRATOS_CONFIG = {
     },
     "Samsung": {
         "destinatarios": ["gerardo.mendez@besco.mx"],
-        "tipos_servicio": [
-            "Diagnostico",
-            "Correctivo",
-            "Instalacion",
-            "Validacion",
-            "Retiro",
-            "Levantamiento",
-        ],
         "estatus": [
             "Servicio concluido",
             "Servicio concluido con observaciones",
@@ -96,39 +79,132 @@ CONTRATOS_CONFIG = {
 
 
 # =========================================================
-# ALCANCES
+# ALCANCES POR CONTRATO
 # =========================================================
-ALCANCES = [
-    ("01_Electrico", "Instalaciones electricas y tableros"),
-    ("02_Canceleria_Vidrieria", "Perfiles, cristales y herrajes"),
-    ("03_Hidrosanitaria", "Acometida, bombeo, pluviales"),
-    ("04_Mobiliario", "Mobiliario y cerrajeria basica"),
-    ("05_Generales", "Acabados, limpieza y reparaciones"),
-    ("06.1_AA_Paquetes", "A/A integrales/paquetes"),
-    ("06.2_AA_Divididos", "Mini-split/Fan and Coil"),
-    ("06.3_Chillers_Manej", "Chillers/Manejadora"),
-    ("06.4_Manejadoras_AireLav", "Manejadoras de aire lavado"),
-    ("06.5_AA_menor_3TR", "Aire acondicionado menor a 3 TR"),
-    ("07_UPS", "Revision de UPS"),
-    ("09_Depositos_Agua", "Cisternas y tinacos"),
-    ("13_Reportes", "Gestion documental"),
-]
-
-
-# =========================================================
-# EVIDENCIAS
-# =========================================================
-EVIDENCIAS_OBLIGATORIAS = [
-    "Fotos de fachada",
-    "Fotos de acceso",
-    "Fotos de area intervenida",
-    "Antes",
-    "Durante",
-    "Despues",
-]
-
-EVIDENCIA_DOCUMENTAL = "Folio / ticket"
-EVIDENCIA_OPCIONAL = "Evidencia adicional"
+ALCANCES_POR_CONTRATO = {
+    "Santander": [
+        {
+            "numero": 1,
+            "momento": "Arribo",
+            "actividad": (
+                "Presentarse con gerente encargado. Confirmar OT/folio "
+                "y alcance de visita."
+            ),
+        },
+        {
+            "numero": 2,
+            "momento": "Seguridad",
+            "actividad": (
+                "Induccion rapida: zonas restringidas, riesgos, energia, "
+                "alturas y agua."
+            ),
+        },
+        {
+            "numero": 3,
+            "momento": "Reconocimiento",
+            "actividad": (
+                "Recorrido inicial por areas aplicables segun CHECK LIST."
+            ),
+        },
+        {
+            "numero": 4,
+            "momento": "Priorizacion",
+            "actividad": (
+                "Ordenar actividades: seguridad, operacion critica, "
+                "correctivos visibles y preventivos."
+            ),
+        },
+        {
+            "numero": 5,
+            "momento": "Ejecucion",
+            "actividad": (
+                "Realizar mantenimiento o inspeccion por codigo y especialidad."
+            ),
+        },
+        {
+            "numero": 6,
+            "momento": "Desviaciones",
+            "actividad": (
+                "Documentar hallazgos con causa, impacto, material y recomendacion."
+            ),
+        },
+        {
+            "numero": 7,
+            "momento": "Limpieza y pruebas",
+            "actividad": (
+                "Retirar residuos, normalizar areas y probar equipos intervenidos."
+            ),
+        },
+        {
+            "numero": 8,
+            "momento": "Cierre con sucursal",
+            "actividad": (
+                "Revisar hallazgos, pendientes, evidencias y cierre con sucursal."
+            ),
+        },
+        {
+            "numero": 9,
+            "momento": "Reporte",
+            "actividad": (
+                "Actualizar CHECK LIST, hojas por area y resumen KPI."
+            ),
+        },
+    ],
+    "MacStore": [
+        {
+            "numero": 1,
+            "momento": "Arribo",
+            "actividad": "Presentarse en tienda y confirmar folio, alcance y responsable en sitio.",
+        },
+        {
+            "numero": 2,
+            "momento": "Inspeccion inicial",
+            "actividad": "Realizar recorrido inicial y levantar evidencia del area intervenida.",
+        },
+        {
+            "numero": 3,
+            "momento": "Ejecucion",
+            "actividad": "Ejecutar actividades correctivas, preventivas o de levantamiento segun servicio.",
+        },
+        {
+            "numero": 4,
+            "momento": "Pruebas",
+            "actividad": "Validar funcionamiento, limpieza del area y condiciones finales.",
+        },
+        {
+            "numero": 5,
+            "momento": "Cierre",
+            "actividad": "Documentar hallazgos, evidencias, actividades y cierre con responsable.",
+        },
+    ],
+    "Samsung": [
+        {
+            "numero": 1,
+            "momento": "Arribo",
+            "actividad": "Presentarse en sitio y confirmar folio, alcance y responsable.",
+        },
+        {
+            "numero": 2,
+            "momento": "Diagnostico",
+            "actividad": "Realizar diagnostico inicial y documentar condiciones encontradas.",
+        },
+        {
+            "numero": 3,
+            "momento": "Ejecucion",
+            "actividad": "Ejecutar instalacion, validacion, retiro o correccion segun servicio.",
+        },
+        {
+            "numero": 4,
+            "momento": "Pruebas",
+            "actividad": "Realizar pruebas de funcionamiento y documentar resultado.",
+        },
+        {
+            "numero": 5,
+            "momento": "Reporte",
+            "actividad": "Registrar evidencias, observaciones y cierre del servicio.",
+        },
+    ],
+}
 
 
 # =========================================================
@@ -254,278 +330,260 @@ def limpiar_texto(texto):
 def limpiar_nombre_archivo(nombre):
     invalidos = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", "(", ")", "&"]
 
-    limpio = limpiar_texto(str(nombre))
+    lim*io = limpiar_texto(str(nombre))
 
-    for caracter in invalidos:
-        limpio = limpio.replace(caracter, "_")
+ *  for caracter in invalidos:
+     *  limpio = limpio.replace(caracter* "_")
 
-    limpio = limpio.replace(" ", "_")
+    limpio = limpio.replace*" ", "_")
 
     return limpio
 
 
-def dividir_texto(texto, max_chars=90):
-    palabras = limpiar_texto(texto).split()
+def*dividir_texto(texto, max_chars=90)*
+    palabras = limpiar_texto(text*).split()
     lineas = []
-    linea_actual = ""
+    line*_actual = ""
 
-    for palabra in palabras:
-        if len(linea_actual) + len(palabra) + 1 <= max_chars:
-            if linea_actual:
-                linea_actual += " " + palabra
+    for palabra in p*labras:
+        if len(linea_actua*) + len(palabra) + 1 <= max_chars:*            if linea_actual:
+     *          linea_actual += " " + pa*abra
             else:
-                linea_actual = palabra
-        else:
-            lineas.append(linea_actual)
-            linea_actual = palabra
+           *    linea_actual = palabra
+       *else:
+            lineas.append(li*ea_actual)
+            linea_actua* = palabra
 
     if linea_actual:
-        lineas.append(linea_actual)
+ *      lineas.append(linea_actual)
+*    return lineas
 
-    return lineas
 
+def comprimir_*magen_a_temp(uploaded_file):
+    u*loaded_file.seek(0)
 
-def comprimir_imagen_a_temp(uploaded_file):
-    uploaded_file.seek(0)
+    imagen = *mage.open(uploaded_file).convert("*GB")
+    imagen.thumbnail(MAX_IMAG*_SIZE)
 
-    imagen = Image.open(uploaded_file).convert("RGB")
-    imagen.thumbnail(MAX_IMAGE_SIZE)
-
-    temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+    temp_img = tempfile.Na*edTemporaryFile(delete=False, suff*x=".jpg")
     temp_img.close()
 
-    imagen.save(
-        temp_img.name,
+  * imagen.save(
+        temp_img.nam*,
         format="JPEG",
-        quality=IMAGE_QUALITY,
-        optimize=True
+        q*ality=IMAGE_QUALITY,
+        optim*ze=True
     )
 
-    return temp_img.name
+    return temp_img*name
 
 
-def contar_archivos(archivos):
-    if not archivos:
-        return 0
-
-    return len(archivos)
+def archivo_cargado(uploade*_file):
+    return uploaded_file i* not None
 
 
-def mostrar_estado(nombre, archivos):
-    cantidad = contar_archivos(archivos)
-
-    if cantidad == 0:
-        st.caption(f"{nombre}: sin archivos cargados.")
-    elif cantidad <= MAX_FOTOS_POR_SECCION:
-        st.success(f"{nombre}: {cantidad} archivo(s) cargado(s).")
-    else:
-        st.warning(
-            f"{nombre}: {cantidad} archivo(s) cargado(s). "
-            f"Se integraran maximo {MAX_FOTOS_POR_SECCION} para mantener ligero el PDF."
-        )
-
-
-def obtener_descripcion(seccion):
-    for sec, desc in ALCANCES:
-        if sec == seccion:
-            return desc
-
-    return ""
-
-
-# =========================================================
+# ====================*==================================*=
 # PDF
-# =========================================================
-def encabezado_pdf(c, titulo):
-    y = 750
+# ========================*================================
+d*f encabezado_pdf(c, titulo):
+    y*= 750
 
-    c.setFillColor(colors.HexColor("#1E3A5F"))
-    c.setFont("Helvetica-Bold", 15)
-    c.drawString(MARGIN_LEFT, y, limpiar_texto(titulo))
+    c.setFillColor(colors.H*xColor("#1E3A5F"))
+    c.setFont("*elvetica-Bold", 15)
+    c.drawStri*g(MARGIN_LEFT, y, limpiar_texto(ti*ulo))
 
     y -= 18
 
-    c.setFillColor(colors.HexColor("#5B6573"))
-    c.setFont("Helvetica", 9)
-    fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    c.drawString(MARGIN_LEFT, y, f"Generado el {fecha_generado}")
+    c.setFillC*lor(colors.HexColor("#5B6573"))
+  * c.setFont("Helvetica", 9)
+    fec*a_generado = datetime.now().strfti*e("%d/%m/%Y %H:%M:%S")
+    c.drawS*ring(MARGIN_LEFT, y, f"Generado el*{fecha_generado}")
 
     y -= 20
 
-    c.setStrokeColor(colors.HexColor("#D9E2EC"))
-    c.line(MARGIN_LEFT, y, PDF_WIDTH - MARGIN_RIGHT, y)
+ *  c.setStrokeColor(colors.HexColor*"#D9E2EC"))
+    c.line(MARGIN_LEFT* y, PDF_WIDTH - MARGIN_RIGHT, y)
 
-    y -= 25
-
-    return y
-
-
-def nueva_pagina(c, y, espacio=120):
-    if y < espacio:
-        c.showPage()
-        y = encabezado_pdf(c, "REPORTE FOTOGRAFICO - CONTINUACION")
+*   y -= 25
 
     return y
 
 
-def titulo_seccion(c, titulo, y):
-    y = nueva_pagina(c, y, 80)
+def nue*a_pagina(c, y, espacio=120):
+    i* y < espacio:
+        c.showPage()*        y = encabezado_pdf(c, "REP*RTE FOTOGRAFICO - CONTINUACION")
 
-    c.setFont("Helvetica-Bold", 13)
-    c.setFillColor(colors.HexColor("#1E3A5F"))
-    c.drawString(MARGIN_LEFT, y, limpiar_texto(titulo))
+*   return y
+
+
+def titulo_seccion(c* titulo, y):
+    y = nueva_pagina(*, y, 80)
+
+    c.setFont("Helvetica*Bold", 13)
+    c.setFillColor(colo*s.HexColor("#1E3A5F"))
+    c.drawS*ring(MARGIN_LEFT, y, limpiar_texto*titulo))
 
     y -= 18
 
+    return *
+
+
+def linea_pdf(c, etiqueta, valo*, y):
+    y = nueva_pagina(c, y, 7*)
+
+    c.setFont("Helvetica-Bold",*9)
+    c.setFillColor(colors.HexCo*or("#1E3A5F"))
+    c.drawString(MA*GIN_LEFT, y, limpiar_texto(f"{etiq*eta}:"))
+
+    c.setFont("Helvetica*, 9)
+    c.setFillColor(colors.bla*k)
+    c.drawString(MARGIN_LEFT + *25, y, limpiar_texto(valor))
+
+    * -= 15
+
     return y
 
 
-def linea_pdf(c, etiqueta, valor, y):
-    y = nueva_pagina(c, y, 70)
+def bloque_*exto_pdf(c, titulo, texto, y):
+   *y = titulo_seccion(c, titulo, y)
 
-    c.setFont("Helvetica-Bold", 9)
-    c.setFillColor(colors.HexColor("#1E3A5F"))
-    c.drawString(MARGIN_LEFT, y, limpiar_texto(f"{etiqueta}:"))
+*   if not texto:
+        texto = "*in informacion capturada."
 
-    c.setFont("Helvetica", 9)
-    c.setFillColor(colors.black)
-    c.drawString(MARGIN_LEFT + 125, y, limpiar_texto(valor))
+    c.*etFont("Helvetica", 9)
+    c.setFi*lColor(colors.black)
 
-    y -= 15
-
-    return y
-
-
-def bloque_texto_pdf(c, titulo, texto, y):
-    y = titulo_seccion(c, titulo, y)
-
-    if not texto:
-        texto = "Sin informacion capturada."
-
-    c.setFont("Helvetica", 9)
-    c.setFillColor(colors.black)
-
-    for linea in dividir_texto(texto):
-        y = nueva_pagina(c, y, 70)
-        c.drawString(MARGIN_LEFT, y, limpiar_texto(linea))
+    for line* in dividir_texto(texto):
+        * = nueva_pagina(c, y, 70)
+        *.drawString(MARGIN_LEFT, y, limpia*_texto(linea))
         y -= 13
 
-    y -= 10
+  * y -= 10
 
     return y
 
 
-def imagen_pdf(c, titulo, uploaded_file, y):
-    if uploaded_file is None:
-        return y
+def image*_pdf(c, titulo, uploaded_file, y):*    if uploaded_file is None:
+    *   return y
 
-    y = nueva_pagina(c, y, 240)
+    y = nueva_pagina(*, y, 240)
 
-    c.setFont("Helvetica-Bold", 10)
-    c.setFillColor(colors.HexColor("#1E3A5F"))
-    c.drawString(MARGIN_LEFT, y, limpiar_texto(titulo))
+    c.setFont("Helvetic*-Bold", 10)
+    c.setFillColor(col*rs.HexColor("#1E3A5F"))
+    c.draw*tring(MARGIN_LEFT, y, limpiar_text*(titulo))
 
     y -= 10
 
-    temp_path = None
+    temp_p*th = None
 
     try:
-        temp_path = comprimir_imagen_a_temp(uploaded_file)
-        img_reader = ImageReader(temp_path)
+        temp_p*th = comprimir_imagen_a_temp(uploa*ed_file)
+        img_reader = Imag*Reader(temp_path)
 
-        img_w, img_h = img_reader.getSize()
+        img_w, *mg_h = img_reader.getSize()
 
-        ancho_max = 250
-        alto_max = 160
+     *  ancho_max = 250
+        alto_max*= 160
 
-        ratio = min(ancho_max / img_w, alto_max / img_h)
+        ratio = min(ancho_m*x / img_w, alto_max / img_h)
 
-        draw_w = img_w * ratio
-        draw_h = img_h * ratio
+    *   draw_w = img_w * ratio
+        *raw_h = img_h * ratio
 
-        y -= draw_h + 8
+        y -* draw_h + 8
 
         c.drawImage(
-            img_reader,
-            MARGIN_LEFT,
+*           img_reader,
+           *MARGIN_LEFT,
             y,
-            width=draw_w,
-            height=draw_h,
-            preserveAspectRatio=True,
-            mask="auto"
+      *     width=draw_w,
+            hei*ht=draw_h,
+            preserveAsp*ctRatio=True,
+            mask="au*o"
         )
 
         y -= 18
 
-    except Exception as error:
-        c.setFont("Helvetica", 8)
-        c.setFillColor(colors.red)
-        c.drawString(
-            MARGIN_LEFT,
+   *except Exception as error:
+       *c.setFont("Helvetica", 8)
+        *.setFillColor(colors.red)
+        *.drawString(
+            MARGIN_LE*T,
             y - 20,
-            limpiar_texto(f"No se pudo insertar imagen: {error}")
+           *limpiar_texto(f"No se pudo inserta* imagen: {error}")
         )
-        y -= 40
+     *  y -= 40
 
     finally:
-        if temp_path and os.path.exists(temp_path):
+        if*temp_path and os.path.exists(temp_*ath):
             try:
-                os.remove(temp_path)
-            except Exception:
-                pass
+           *    os.remove(temp_path)
+         *  except Exception:
+              * pass
 
     return y
 
 
-def crear_pdf(
+def crear_pd*(
     contrato,
     folio,
-    fecha_ejecucion,
+    fec*a_ejecucion,
     sucursal,
-    direccion,
+    dir*ccion,
     ciudad,
     oficina,
-    tecnico,
+  * tecnico,
     supervisor,
-    tipo_servicio,
+    tipo*servicio,
     estatus_final,
-    seccion,
-    descripcion,
-    actividades,
+    a*cance_items,
+    evidencias_por_it*m,
     observaciones,
-    df_materiales,
-    evidencias,
+    df_mater*ales,
     destinatarios,
 ):
-    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    pdf_path = temp_pdf.name
-    temp_pdf.close()
+    te*p_pdf = tempfile.NamedTemporaryFil*(delete=False, suffix=".pdf")
+    *df_path = temp_pdf.name
+    temp_p*f.close()
 
-    c = canvas.Canvas(pdf_path, pagesize=letter)
+    c = canvas.Canvas(p*f_path, pagesize=letter)
 
-    y = encabezado_pdf(c, "REPORTE FOTOGRAFICO POR CONTRATO")
+    y = *ncabezado_pdf(c, "REPORTE FOTOGRAF*CO POR CONTRATO")
 
-    y = titulo_seccion(c, "Datos generales", y)
+    y = titulo_*eccion(c, "Datos generales", y)
 
-    y = linea_pdf(c, "Contrato", contrato, y)
-    y = linea_pdf(c, "Folio / Ticket / OT", folio, y)
-    y = linea_pdf(c, "Fecha de ejecucion", fecha_ejecucion.strftime("%d/%m/%Y"), y)
-    y = linea_pdf(c, "Sucursal / Inmueble", sucursal, y)
-    y = linea_pdf(c, "Direccion", direccion if direccion else "-", y)
-    y = linea_pdf(c, "Ciudad", ciudad if ciudad else "-", y)
-    y = linea_pdf(c, "Oficina responsable", oficina if oficina else "-", y)
-    y = linea_pdf(c, "Tecnico asignado", tecnico, y)
-    y = linea_pdf(c, "Supervisor", supervisor if supervisor else "-", y)
-    y = linea_pdf(c, "Tipo de servicio", tipo_servicio, y)
-    y = linea_pdf(c, "Estatus final", estatus_final, y)
+ *  y = linea_pdf(c, "Contrato", con*rato, y)
+    y = linea_pdf(c, "Fol*o / Ticket / OT", folio, y)
+    y * linea_pdf(c, "Fecha de ejecucion"* fecha_ejecucion.strftime("%d/%m/%*"), y)
+    y = linea_pdf(c, "Sucur*al / Inmueble", sucursal, y)
+    y*= linea_pdf(c, "Direccion", direcc*on if direccion else "-", y)
+    y*= linea_pdf(c, "Ciudad", ciudad if*ciudad else "-", y)
+    y = linea_*df(c, "Oficina responsable", ofici*a if oficina else "-", y)
+    y = *inea_pdf(c, "Tecnico asignado", te*nico, y)
+    y = linea_pdf(c, "Sup*rvisor", supervisor if supervisor *lse "-", y)
+    y = linea_pdf(c, "*ipo de servicio", tipo_servicio, y*
+    y = linea_pdf(c, "Estatus fin*l", estatus_final, y)
 
     y -= 8
+*    y = titulo_seccion(c, "Alcance*y evidencias", y)
 
-    y = titulo_seccion(c, "Alcance del servicio", y)
-    y = linea_pdf(c, "Seccion", seccion, y)
-    y = linea_pdf(c, "Descripcion", descripcion, y)
+    for item in*alcance_items:
+        numero = it*m["numero"]
+        momento = item*"momento"]
+        actividad = ite*["actividad"]
 
-    y = bloque_texto_pdf(c, "Actividades realizadas", actividades, y)
+        y = nueva_p*gina(c, y, 160)
+
+        y = linea*pdf(c, "Renglon", str(numero), y)
+*       y = linea_pdf(c, "Momento",*momento, y)
+        y = bloque_tex*o_pdf(c, "Actividad critica", acti*idad, y)
+
+        evidencia = evid*ncias_por_item.get(numero, {})
+
+  *     y = imagen_pdf(c, f"{numero} * {momento} - Antes 1", evidencia.g*t("antes_1"), y)
+        y = imagen_pdf(c, f"{numero} - {momento} - Antes 2", evidencia.get("antes_2"), y)
+        y = imagen_pdf(c, f"{numero} - {momento} - Despues 1", evidencia.get("despues_1"), y)
+        y = imagen_pdf(c, f"{numero} - {momento} - Despues 2", evidencia.get("despues_2"), y)
 
     if df_materiales is not None and not df_materiales.empty:
         y = titulo_seccion(c, "Materiales utilizados", y)
@@ -542,46 +600,7 @@ def crear_pdf(
                     y
                 )
 
-        y -= 8
-
     y = bloque_texto_pdf(c, "Observaciones", observaciones, y)
-
-    y = titulo_seccion(c, "Evidencias fotograficas", y)
-
-    hay_evidencias = False
-
-    for nombre_evidencia, archivos in evidencias.items():
-        if archivos:
-            hay_evidencias = True
-
-            archivos_limitados = archivos[:MAX_FOTOS_POR_SECCION]
-
-            for index, archivo in enumerate(archivos_limitados, start=1):
-                if hasattr(archivo, "type") and archivo.type == "application/pdf":
-                    y = linea_pdf(
-                        c,
-                        nombre_evidencia,
-                        f"PDF adjunto registrado: {archivo.name}",
-                        y
-                    )
-                else:
-                    y = imagen_pdf(
-                        c,
-                        f"{nombre_evidencia} - Foto {index}",
-                        archivo,
-                        y
-                    )
-
-            if len(archivos) > MAX_FOTOS_POR_SECCION:
-                y = linea_pdf(
-                    c,
-                    nombre_evidencia,
-                    f"Se integraron {MAX_FOTOS_POR_SECCION} de {len(archivos)} archivos.",
-                    y
-                )
-
-    if not hay_evidencias:
-        y = linea_pdf(c, "Evidencias", "No se adjuntaron evidencias.", y)
 
     y = bloque_texto_pdf(
         c,
@@ -682,7 +701,7 @@ def enviar_correo(
 # =========================================================
 # VALIDACION
 # =========================================================
-def validar_reporte(contrato, folio, sucursal, tecnico, seccion, actividades, evidencias):
+def validar_reporte(contrato, folio, sucursal, tecnico, evidencias_por_item, alcance_items):
     faltantes = []
 
     if not contrato:
@@ -697,15 +716,22 @@ def validar_reporte(contrato, folio, sucursal, tecnico, seccion, actividades, ev
     if not tecnico.strip():
         faltantes.append("Tecnico asignado")
 
-    if not seccion:
-        faltantes.append("Seccion / Alcance")
+    for item in alcance_items:
+        numero = item["numero"]
+        momento = item["momento"]
+        evidencia = evidencias_por_item.get(numero, {})
 
-    if not actividades.strip():
-        faltantes.append("Actividades realizadas")
+        if not archivo_cargado(evidencia.get("antes_1")):
+            faltantes.append(f"{momento} - Antes 1")
 
-    for evidencia in EVIDENCIAS_OBLIGATORIAS:
-        if not evidencias.get(evidencia):
-            faltantes.append(evidencia)
+        if not archivo_cargado(evidencia.get("antes_2")):
+            faltantes.append(f"{momento} - Antes 2")
+
+        if not archivo_cargado(evidencia.get("despues_1")):
+            faltantes.append(f"{momento} - Despues 1")
+
+        if not archivo_cargado(evidencia.get("despues_2")):
+            faltantes.append(f"{momento} - Despues 2")
 
     return faltantes
 
@@ -735,8 +761,8 @@ def main():
     st.markdown(
         """
         <div class="info-box">
-            Version ligera para celular. Primero genera el PDF, despues descargalo o envialo por correo.
-            Las fotos se comprimen automaticamente.
+            Version ligera para celular. El alcance cambia segun el contrato seleccionado.
+            Para cada renglon del alcance se solicitan 2 fotos antes y 2 fotos despues.
         </div>
         """,
         unsafe_allow_html=True
@@ -750,10 +776,11 @@ def main():
     )
 
     config = CONTRATOS_CONFIG[contrato]
+    alcance_items = ALCANCES_POR_CONTRATO.get(contrato, [])
 
     tipo_servicio = st.selectbox(
         "Tipo de servicio",
-        config["tipos_servicio"]
+        TIPOS_SERVICIO
     )
 
     estatus_final = st.selectbox(
@@ -780,97 +807,85 @@ def main():
 
     st.divider()
 
-    st.subheader("2. Alcance")
-
-    labels_alcances = [
-        f"{seccion} - {descripcion}"
-        for seccion, descripcion in ALCANCES
-    ]
-
-    alcance_label = st.selectbox(
-        "Selecciona la seccion del alcance",
-        labels_alcances
-    )
-
-    seccion = alcance_label.split(" - ")[0].strip()
-    descripcion = obtener_descripcion(seccion)
+    st.subheader("2. Alcance del contrato")
 
     st.markdown(
         f"""
         <div class="info-box">
-            <strong>Seccion:</strong> {seccion}<br>
-            <strong>Descripcion:</strong> {descripcion}
+            <strong>Contrato seleccionado:</strong> {contrato}<br>
+            <strong>Renglones del alcance:</strong> {len(alcance_items)}<br>
+            Por cada renglon se deben cargar 2 fotos antes y 2 fotos despues.
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    actividades_default = (
-        f"Se ejecutan actividades correspondientes a la seccion {seccion}: {descripcion}."
-    )
+    evidencias_por_item = {}
 
-    actividades = st.text_area(
-        "Actividades realizadas",
-        value=actividades_default,
-        height=130
-    )
+    for item in alcance_items:
+        numero = item["numero"]
+        momento = item["momento"]
+        actividad = item["actividad"]
+
+        with st.expander(f"{numero}. {momento}", expanded=False):
+            st.markdown(
+                f"""
+                <div class="info-box">
+                    <strong>Actividad critica:</strong><br>
+                    {actividad}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            antes_1 = st.file_uploader(
+                f"{numero}. {momento} - Antes 1",
+                type=["jpg", "jpeg", "png"],
+                key=f"{contrato}_{numero}_antes_1"
+            )
+
+            antes_2 = st.file_uploader(
+                f"{numero}. {momento} - Antes 2",
+                type=["jpg", "jpeg", "png"],
+                key=f"{contrato}_{numero}_antes_2"
+            )
+
+            despues_1 = st.file_uploader(
+                f"{numero}. {momento} - Despues 1",
+                type=["jpg", "jpeg", "png"],
+                key=f"{contrato}_{numero}_despues_1"
+            )
+
+            despues_2 = st.file_uploader(
+                f"{numero}. {momento} - Despues 2",
+                type=["jpg", "jpeg", "png"],
+                key=f"{contrato}_{numero}_despues_2"
+            )
+
+            evidencias_por_item[numero] = {
+                "antes_1": antes_1,
+                "antes_2": antes_2,
+                "despues_1": despues_1,
+                "despues_2": despues_2,
+            }
+
+            cargadas = sum(
+                [
+                    1 if antes_1 else 0,
+                    1 if antes_2 else 0,
+                    1 if despues_1 else 0,
+                    1 if despues_2 else 0,
+                ]
+            )
+
+            if cargadas == 4:
+                st.success("Evidencia completa para este renglon.")
+            else:
+                st.warning(f"Evidencias cargadas: {cargadas} de 4.")
 
     st.divider()
 
-    st.subheader("3. Evidencias fotograficas")
-
-    st.markdown(
-        """
-        <div class="warning-box">
-            No se muestran vistas previas para mantener ligera la app.
-            Se recomienda maximo 6 fotos por seccion.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    evidencias = {}
-
-    st.markdown("#### Evidencias obligatorias")
-
-    for evidencia in EVIDENCIAS_OBLIGATORIAS:
-        archivos = st.file_uploader(
-            evidencia,
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            key=f"ev_{evidencia}"
-        )
-
-        evidencias[evidencia] = archivos
-        mostrar_estado(evidencia, archivos)
-
-    st.markdown("#### Evidencia documental")
-
-    archivos_folio = st.file_uploader(
-        EVIDENCIA_DOCUMENTAL,
-        type=["jpg", "jpeg", "png", "pdf"],
-        accept_multiple_files=True,
-        key="ev_folio_ticket"
-    )
-
-    evidencias[EVIDENCIA_DOCUMENTAL] = archivos_folio
-    mostrar_estado(EVIDENCIA_DOCUMENTAL, archivos_folio)
-
-    st.markdown("#### Evidencia opcional")
-
-    archivos_adicional = st.file_uploader(
-        EVIDENCIA_OPCIONAL,
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        key="ev_adicional"
-    )
-
-    evidencias[EVIDENCIA_OPCIONAL] = archivos_adicional
-    mostrar_estado(EVIDENCIA_OPCIONAL, archivos_adicional)
-
-    st.divider()
-
-    st.subheader("4. Observaciones y materiales")
+    st.subheader("3. Observaciones y materiales")
 
     observaciones = st.text_area(
         "Observaciones",
@@ -893,7 +908,7 @@ def main():
 
     st.divider()
 
-    st.subheader("5. Generar PDF y enviar correo")
+    st.subheader("4. Generar PDF y enviar correo")
 
     destinatarios_base = config["destinatarios"].copy()
 
@@ -911,20 +926,22 @@ def main():
         folio=folio,
         sucursal=sucursal,
         tecnico=tecnico,
-        seccion=seccion,
-        actividades=actividades,
-        evidencias=evidencias
+        evidencias_por_item=evidencias_por_item,
+        alcance_items=alcance_items
     )
 
     if faltantes:
         st.markdown(
             f"""
             <div class="warning-box">
-                Faltan campos o evidencias obligatorias: {", ".join(faltantes)}
+                Faltan campos o evidencias obligatorias: {", ".join(faltantes[:20])}
             </div>
             """,
             unsafe_allow_html=True
         )
+
+        if len(faltantes) > 20:
+            st.warning(f"Hay {len(faltantes)} faltantes en total.")
     else:
         st.markdown(
             """
@@ -964,17 +981,15 @@ def main():
                     supervisor=supervisor,
                     tipo_servicio=tipo_servicio,
                     estatus_final=estatus_final,
-                    seccion=seccion,
-                    descripcion=descripcion,
-                    actividades=actividades,
+                    alcance_items=alcance_items,
+                    evidencias_por_item=evidencias_por_item,
                     observaciones=observaciones,
                     df_materiales=df_materiales,
-                    evidencias=evidencias,
                     destinatarios=destinatarios_base,
                 )
 
                 nombre_pdf = limpiar_nombre_archivo(
-                    f"Reporte_Fotografico_{contrato}_{seccion}_{folio}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    f"Reporte_Fotografico_{contrato}_{folio}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                 )
 
                 st.session_state["rf_contrato_pdf_path"] = pdf_path
