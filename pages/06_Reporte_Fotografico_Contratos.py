@@ -29,17 +29,9 @@ MARGIN_BOTTOM = 55
 MAX_IMAGE_SIZE = (1000, 1000)
 IMAGE_QUALITY = 65
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-LOGO_CANDIDATOS = [
-    "logo besco 2026.jpeg",
-    "logo besco 2026.jpg",
-    "logo_besco_2026.jpeg",
-    "logo_besco_2026.jpg",
-    "logo.jpeg",
-    "logo.jpg",
-    "logo.png",
-]
+APP_DIR = os.path.abspath(os.path.dirname(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(APP_DIR, ".."))
+LOGO_PATH = os.path.join(ROOT_DIR, "logo besco 2026.jpeg")
 
 TIPOS_SERVICIO = [
     "Correctivo",
@@ -111,91 +103,76 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse con gerente encargado. Confirmar OT/folio y alcance de visita.",
-            "required": False,
         },
         {
             "numero": 2,
             "momento": "Seguridad",
             "actividad": "Induccion rapida: zonas restringidas, riesgos, energia, alturas y agua.",
-            "required": False,
         },
         {
             "numero": 3,
             "momento": "Reconocimiento",
             "actividad": "Recorrido inicial por areas aplicables segun CHECK LIST.",
-            "required": False,
         },
         {
             "numero": 4,
             "momento": "01_Electrico",
             "actividad": "Instalaciones electricas y tableros.",
-            "required": False,
         },
         {
             "numero": 5,
             "momento": "02_Canceleria_Vidrieria",
             "actividad": "Perfiles, cristales y herrajes.",
-            "required": False,
         },
         {
             "numero": 6,
             "momento": "03_Hidrosanitaria",
             "actividad": "Acometida y bajadas pluviales.",
-            "required": False,
         },
         {
             "numero": 7,
             "momento": "03_Hidrosanitaria_Bombeo",
             "actividad": "Sistema de bombeo. Evidencia opcional.",
-            "required": False,
         },
         {
             "numero": 8,
             "momento": "04_Mobiliario",
             "actividad": "Mobiliario y cerrajeria basica.",
-            "required": False,
         },
         {
             "numero": 9,
             "momento": "05_Generales",
             "actividad": "Acabados, limpieza, pintura y reparaciones generales.",
-            "required": False,
         },
         {
             "numero": 10,
             "momento": "06_AA_Parametros",
             "actividad": "Equipos de aire acondicionado con toma de parametros: minisplit, fan and coil, manejadora, aire lavado y chiller.",
-            "required": False,
         },
         {
             "numero": 11,
             "momento": "07_UPS",
             "actividad": "Revision de UPS y toma de parametros.",
-            "required": False,
         },
         {
             "numero": 12,
             "momento": "09_Depositos_Agua_Cisterna",
             "actividad": "Depositos de agua: cisterna.",
-            "required": False,
         },
         {
             "numero": 13,
             "momento": "09_Depositos_Agua_Tinacos",
             "actividad": "Depositos de agua: tinacos. Evidencia opcional.",
-            "required": False,
         },
         {
             "numero": 14,
             "momento": "Desviaciones",
             "actividad": "Documentar hallazgos con causa, impacto, material y recomendacion. Evidencia opcional.",
-            "required": False,
         },
         {
             "numero": 15,
             "momento": "Limpieza y pruebas",
             "actividad": "Retirar residuos, normalizar areas y probar equipos intervenidos.",
-            "required": False,
         },
     ],
     "MacStore": [
@@ -203,31 +180,26 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse en tienda y confirmar folio, alcance y responsable en sitio.",
-            "required": False,
         },
         {
             "numero": 2,
             "momento": "Inspeccion inicial",
             "actividad": "Realizar recorrido inicial y levantar evidencia del area intervenida.",
-            "required": False,
         },
         {
             "numero": 3,
             "momento": "Ejecucion",
             "actividad": "Ejecutar actividades correctivas, preventivas o de levantamiento segun servicio.",
-            "required": False,
         },
         {
             "numero": 4,
             "momento": "Pruebas",
             "actividad": "Validar funcionamiento, limpieza del area y condiciones finales.",
-            "required": False,
         },
         {
             "numero": 5,
             "momento": "Cierre",
             "actividad": "Documentar hallazgos, evidencias, actividades y cierre con responsable.",
-            "required": False,
         },
     ],
     "Samsung": [
@@ -235,31 +207,26 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse en sitio y confirmar folio, alcance y responsable.",
-            "required": False,
         },
         {
             "numero": 2,
             "momento": "Diagnostico",
             "actividad": "Realizar diagnostico inicial y documentar condiciones encontradas.",
-            "required": False,
         },
         {
             "numero": 3,
             "momento": "Ejecucion",
             "actividad": "Ejecutar instalacion, validacion, retiro o correccion segun servicio.",
-            "required": False,
         },
         {
             "numero": 4,
             "momento": "Pruebas",
             "actividad": "Realizar pruebas de funcionamiento y documentar resultado.",
-            "required": False,
         },
         {
             "numero": 5,
             "momento": "Reporte",
             "actividad": "Registrar evidencias, observaciones y cierre del servicio.",
-            "required": False,
         },
     ],
 }
@@ -428,33 +395,6 @@ def dividir_texto(texto, max_chars=90):
     return lineas
 
 
-def obtener_logo_path():
-    for nombre_logo in LOGO_CANDIDATOS:
-        ruta_logo = os.path.join(ROOT_DIR, nombre_logo)
-
-        if os.path.exists(ruta_logo):
-            return ruta_logo
-
-    return None
-
-
-def crear_logo_temporal(ruta_logo):
-    imagen = Image.open(ruta_logo).convert("RGB")
-    imagen.thumbnail((900, 900))
-
-    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-    temp_logo.close()
-
-    imagen.save(
-        temp_logo.name,
-        format="JPEG",
-        quality=85,
-        optimize=True
-    )
-
-    return temp_logo.name
-
-
 def comprimir_imagen_a_temp(uploaded_file):
     uploaded_file.seek(0)
 
@@ -474,67 +414,79 @@ def comprimir_imagen_a_temp(uploaded_file):
     return temp_img.name
 
 
+def existe_logo_besco():
+    return os.path.exists(LOGO_PATH)
+
+
+def crear_logo_temporal():
+    imagen = Image.open(LOGO_PATH).convert("RGB")
+    imagen.thumbnail((1000, 1000))
+
+    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+    temp_logo.close()
+
+    imagen.save(
+        temp_logo.name,
+        format="JPEG",
+        quality=90,
+        optimize=True
+    )
+
+    return temp_logo.name
+
+
 def hay_fotos_en_item(evidencia):
-    if evidencia.get("antes_1") is not None:
-        return True
-
-    if evidencia.get("antes_2") is not None:
-        return True
-
-    if evidencia.get("despues_1") is not None:
-        return True
-
-    if evidencia.get("despues_2") is not None:
-        return True
-
-    return False
+    return any(
+        [
+            evidencia.get("antes_1") is not None,
+            evidencia.get("antes_2") is not None,
+            evidencia.get("despues_1") is not None,
+            evidencia.get("despues_2") is not None,
+        ]
+    )
 
 
 def hay_fotos_antes(evidencia):
-    if evidencia.get("antes_1") is not None:
-        return True
-
-    if evidencia.get("antes_2") is not None:
-        return True
-
-    return False
+    return any(
+        [
+            evidencia.get("antes_1") is not None,
+            evidencia.get("antes_2") is not None,
+        ]
+    )
 
 
 def hay_fotos_despues(evidencia):
-    if evidencia.get("despues_1") is not None:
-        return True
-
-    if evidencia.get("despues_2") is not None:
-        return True
-
-    return False
+    return any(
+        [
+            evidencia.get("despues_1") is not None,
+            evidencia.get("despues_2") is not None,
+        ]
+    )
 
 
 # =========================================================
 # PDF
 # =========================================================
 def encabezado_pdf(c, titulo):
-    y = 750
+    title_y = 750
+    line_y = 700
+    title_x = MARGIN_LEFT
 
-    logo_path = obtener_logo_path()
     logo_temp = None
 
-    titulo_x = MARGIN_LEFT
-
-    if logo_path:
+    if existe_logo_besco():
         try:
-            logo_temp = crear_logo_temporal(logo_path)
-
+            logo_temp = crear_logo_temporal()
             logo_reader = ImageReader(logo_temp)
             logo_w, logo_h = logo_reader.getSize()
 
-            logo_max_w = 105
-            logo_max_h = 42
+            logo_max_w = 115
+            logo_max_h = 45
 
-            logo_ratio = min(logo_max_w / logo_w, logo_max_h / logo_h)
+            ratio = min(logo_max_w / logo_w, logo_max_h / logo_h)
 
-            logo_draw_w = logo_w * logo_ratio
-            logo_draw_h = logo_h * logo_ratio
+            draw_w = logo_w * ratio
+            draw_h = logo_h * ratio
 
             logo_x = MARGIN_LEFT
             logo_y = 715
@@ -543,16 +495,16 @@ def encabezado_pdf(c, titulo):
                 logo_reader,
                 logo_x,
                 logo_y,
-                width=logo_draw_w,
-                height=logo_draw_h,
+                width=draw_w,
+                height=draw_h,
                 preserveAspectRatio=True,
                 mask="auto"
             )
 
-            titulo_x = MARGIN_LEFT + 130
+            title_x = MARGIN_LEFT + 135
 
         except Exception:
-            titulo_x = MARGIN_LEFT
+            title_x = MARGIN_LEFT
 
         finally:
             if logo_temp and os.path.exists(logo_temp):
@@ -563,23 +515,17 @@ def encabezado_pdf(c, titulo):
 
     c.setFillColor(colors.HexColor("#1E3A5F"))
     c.setFont("Helvetica-Bold", 15)
-    c.drawString(titulo_x, y, normalizar_texto(titulo))
-
-    y -= 18
+    c.drawString(title_x, title_y, normalizar_texto(titulo))
 
     c.setFillColor(colors.HexColor("#5B6573"))
     c.setFont("Helvetica", 9)
     fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    c.drawString(titulo_x, y, f"Generado el {fecha_generado}")
-
-    y = 700
+    c.drawString(title_x, title_y - 18, f"Generado el {fecha_generado}")
 
     c.setStrokeColor(colors.HexColor("#D9E2EC"))
-    c.line(MARGIN_LEFT, y, PDF_WIDTH - MARGIN_RIGHT, y)
+    c.line(MARGIN_LEFT, line_y, PDF_WIDTH - MARGIN_RIGHT, line_y)
 
-    y -= 25
-
-    return y
+    return line_y - 25
 
 
 def nueva_pagina(c, y, espacio=120):
@@ -680,9 +626,8 @@ def fila_dos_fotos_pdf(c, titulo_izq, archivo_izq, titulo_der, archivo_der, y):
     if archivo_izq is None and archivo_der is None:
         return y
 
-    alto_titulo = 14
     alto_img = 145
-    alto_total = alto_titulo + alto_img + 24
+    alto_total = alto_img + 38
 
     y = nueva_pagina(c, y, alto_total + MARGIN_BOTTOM)
 
@@ -950,6 +895,11 @@ def main():
         """,
         unsafe_allow_html=True
     )
+
+    if existe_logo_besco():
+        st.success(f"Logo BESCO detectado: {LOGO_PATH}")
+    else:
+        st.warning(f"No se detecto el logo BESCO en la ruta esperada: {LOGO_PATH}")
 
     st.page_link(
         "portal.py",
