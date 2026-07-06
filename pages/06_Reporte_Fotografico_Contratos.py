@@ -29,17 +29,23 @@ MARGIN_BOTTOM = 55
 MAX_IMAGE_SIZE = (1000, 1000)
 IMAGE_QUALITY = 65
 
-APP_DIR = os.path.abspath(os.path.dirname(__file__))
-ROOT_DIR = os.path.abspath(os.path.join(APP_DIR, ".."))
-CWD_DIR = os.getcwd()
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+LOGO_CANDIDATOS = [
+    "logo besco 2026.jpeg",
+    "logo besco 2026.jpg",
+    "logo_besco_2026.jpeg",
+    "logo_besco_2026.jpg",
+    "logo.jpeg",
+    "logo.jpg",
+    "logo.png",
+]
 
 TIPOS_SERVICIO = [
     "Correctivo",
     "Preventivo",
     "Levantamiento",
 ]
-
-EXTENSIONES_LOGO = [".png", ".jpg", ".jpeg"]
 
 
 st.set_page_config(
@@ -97,6 +103,7 @@ CONTRATOS_CONFIG = {
 
 # =========================================================
 # ALCANCES POR CONTRATO
+# Todas las evidencias fotograficas son opcionales.
 # =========================================================
 ALCANCES_POR_CONTRATO = {
     "Santander": [
@@ -104,76 +111,91 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse con gerente encargado. Confirmar OT/folio y alcance de visita.",
+            "required": False,
         },
         {
             "numero": 2,
             "momento": "Seguridad",
             "actividad": "Induccion rapida: zonas restringidas, riesgos, energia, alturas y agua.",
+            "required": False,
         },
         {
             "numero": 3,
             "momento": "Reconocimiento",
             "actividad": "Recorrido inicial por areas aplicables segun CHECK LIST.",
+            "required": False,
         },
         {
             "numero": 4,
             "momento": "01_Electrico",
             "actividad": "Instalaciones electricas y tableros.",
+            "required": False,
         },
         {
             "numero": 5,
             "momento": "02_Canceleria_Vidrieria",
             "actividad": "Perfiles, cristales y herrajes.",
+            "required": False,
         },
         {
             "numero": 6,
             "momento": "03_Hidrosanitaria",
             "actividad": "Acometida y bajadas pluviales.",
+            "required": False,
         },
         {
             "numero": 7,
             "momento": "03_Hidrosanitaria_Bombeo",
             "actividad": "Sistema de bombeo. Evidencia opcional.",
+            "required": False,
         },
         {
             "numero": 8,
             "momento": "04_Mobiliario",
             "actividad": "Mobiliario y cerrajeria basica.",
+            "required": False,
         },
         {
             "numero": 9,
             "momento": "05_Generales",
             "actividad": "Acabados, limpieza, pintura y reparaciones generales.",
+            "required": False,
         },
         {
             "numero": 10,
             "momento": "06_AA_Parametros",
             "actividad": "Equipos de aire acondicionado con toma de parametros: minisplit, fan and coil, manejadora, aire lavado y chiller.",
+            "required": False,
         },
         {
             "numero": 11,
             "momento": "07_UPS",
             "actividad": "Revision de UPS y toma de parametros.",
+            "required": False,
         },
         {
             "numero": 12,
             "momento": "09_Depositos_Agua_Cisterna",
             "actividad": "Depositos de agua: cisterna.",
+            "required": False,
         },
         {
             "numero": 13,
             "momento": "09_Depositos_Agua_Tinacos",
             "actividad": "Depositos de agua: tinacos. Evidencia opcional.",
+            "required": False,
         },
         {
             "numero": 14,
             "momento": "Desviaciones",
             "actividad": "Documentar hallazgos con causa, impacto, material y recomendacion. Evidencia opcional.",
+            "required": False,
         },
         {
             "numero": 15,
             "momento": "Limpieza y pruebas",
             "actividad": "Retirar residuos, normalizar areas y probar equipos intervenidos.",
+            "required": False,
         },
     ],
     "MacStore": [
@@ -181,26 +203,31 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse en tienda y confirmar folio, alcance y responsable en sitio.",
+            "required": False,
         },
         {
             "numero": 2,
             "momento": "Inspeccion inicial",
             "actividad": "Realizar recorrido inicial y levantar evidencia del area intervenida.",
+            "required": False,
         },
         {
             "numero": 3,
             "momento": "Ejecucion",
             "actividad": "Ejecutar actividades correctivas, preventivas o de levantamiento segun servicio.",
+            "required": False,
         },
         {
             "numero": 4,
             "momento": "Pruebas",
             "actividad": "Validar funcionamiento, limpieza del area y condiciones finales.",
+            "required": False,
         },
         {
             "numero": 5,
             "momento": "Cierre",
             "actividad": "Documentar hallazgos, evidencias, actividades y cierre con responsable.",
+            "required": False,
         },
     ],
     "Samsung": [
@@ -208,26 +235,31 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse en sitio y confirmar folio, alcance y responsable.",
+            "required": False,
         },
         {
             "numero": 2,
             "momento": "Diagnostico",
             "actividad": "Realizar diagnostico inicial y documentar condiciones encontradas.",
+            "required": False,
         },
         {
             "numero": 3,
             "momento": "Ejecucion",
             "actividad": "Ejecutar instalacion, validacion, retiro o correccion segun servicio.",
+            "required": False,
         },
         {
             "numero": 4,
             "momento": "Pruebas",
             "actividad": "Realizar pruebas de funcionamiento y documentar resultado.",
+            "required": False,
         },
         {
             "numero": 5,
             "momento": "Reporte",
             "actividad": "Registrar evidencias, observaciones y cierre del servicio.",
+            "required": False,
         },
     ],
 }
@@ -369,254 +401,244 @@ def crear_nombre_archivo(nombre):
 
     invalidos = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", "(", ")", "&"]
 
-    for*caracter in invalidos:
-        val*r = valor.replace(caracter, "_")
+    for caracter in invalidos:
+        valor = valor.replace(caracter, "_")
 
-*   valor = valor.replace(" ", "_")*
+    valor = valor.replace(" ", "_")
+
     return valor
 
 
-def dividir_te*to(texto, max_chars=90):
-    texto*limpio = normalizar_texto(texto)
+def dividir_texto(texto, max_chars=90):
+    texto_limpio = normalizar_texto(texto)
 
-*   if not texto_limpio.strip():
-  *     return ["Sin informacion capturada."]
+    if not texto_limpio.strip():
+        return ["Sin informacion capturada."]
 
-    lineas = textwrap.wra*(
+    lineas = textwrap.wrap(
         texto_limpio,
-        wi*th=max_chars,
-        break_long_w*rds=False,
-        replace_whitesp*ce=False
+        width=max_chars,
+        break_long_words=False,
+        replace_whitespace=False
     )
 
-    if not lineas:*        return ["Sin informacion capturada."]
+    if not lineas:
+        return ["Sin informacion capturada."]
 
     return lineas
 
 
-de* obtener_logo_path():
-    rutas_ba*e = [
-        ROOT_DIR,
-        APP_DIR,
-        CWD_DIR,
-    ]
+def obtener_logo_path():
+    for nombre_logo in LOGO_CANDIDATOS:
+        ruta_logo = os.path.join(ROOT_DIR, nombre_logo)
 
-    *ombres_directos = [
-        "logo besco 2026.jpeg",
-        "logo besco 2026.jpg",
-        "logo besco 2026.png",
-        "logo_besco_2026.jpeg",
-        "logo_besco_2026.jpg",
-        "logo_besco_2026.png",
-        "logo.jpeg",
-        "logo.jpg",
-        "logo.png",
-    ]
-
-   *for ruta_base in rutas_base:
-     *  for nombre in nombres_directos:
-*           ruta_logo = os.path.joi*(ruta_base, nombre)
-
-            i* os.path.exists(ruta_logo):
-      *         return ruta_logo
-
-    for*ruta_base in rutas_base:
-        i* not os.path.exists(ruta_base):
-  *         continue
-
-        for car*eta_actual, _, archivos in os.walk*ruta_base):
-            for archiv* in archivos:
-                arch*vo_lower = archivo.lower()
-       *        extension = os.path.splite*t(archivo_lower)[1]
-
-             *  if extension in EXTENSIONES_LOGO*
-                    if "logo" in *rchivo_lower or "besco" in archivo*lower:
-                        ret*rn os.path.join(carpeta_actual, ar*hivo)
+        if os.path.exists(ruta_logo):
+            return ruta_logo
 
     return None
 
 
-def crear*logo_temporal(ruta_logo):
-    imag*n = Image.open(ruta_logo).convert(*RGB")
-    imagen.thumbnail((1000, *000))
+def crear_logo_temporal(ruta_logo):
+    imagen = Image.open(ruta_logo).convert("RGB")
+    imagen.thumbnail((900, 900))
 
-    temp_logo = tempfile.Na*edTemporaryFile(delete=False, suff*x=".jpg")
+    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
     temp_logo.close()
 
- *  imagen.save(
-        temp_logo.n*me,
+    imagen.save(
+        temp_logo.name,
         format="JPEG",
-       *quality=90,
+        quality=85,
         optimize=True
-*   )
+    )
 
     return temp_logo.name
 
 
-*ef comprimir_imagen_a_temp(uploade*_file):
+def comprimir_imagen_a_temp(uploaded_file):
     uploaded_file.seek(0)
-*    imagen = Image.open(uploaded_f*le).convert("RGB")
-    imagen.thum*nail(MAX_IMAGE_SIZE)
 
-    temp_img*= tempfile.NamedTemporaryFile(dele*e=False, suffix=".jpg")
-    temp_i*g.close()
+    imagen = Image.open(uploaded_file).convert("RGB")
+    imagen.thumbnail(MAX_IMAGE_SIZE)
+
+    temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+    temp_img.close()
 
     imagen.save(
-      * temp_img.name,
-        format="JP*G",
-        quality=IMAGE_QUALITY,*        optimize=True
+        temp_img.name,
+        format="JPEG",
+        quality=IMAGE_QUALITY,
+        optimize=True
     )
 
-    r*turn temp_img.name
+    return temp_img.name
 
 
-def hay_fotos*en_item(evidencia):
-    return any*
-        [
-            evidencia.get("antes_1") is not None,
-        *   evidencia.get("antes_2") is not*None,
-            evidencia.get("d*spues_1") is not None,
-           *evidencia.get("despues_2") is not *one,
-        ]
-    )
+def hay_fotos_en_item(evidencia):
+    if evidencia.get("antes_1") is not None:
+        return True
+
+    if evidencia.get("antes_2") is not None:
+        return True
+
+    if evidencia.get("despues_1") is not None:
+        return True
+
+    if evidencia.get("despues_2") is not None:
+        return True
+
+    return False
 
 
-def hay_fot*s_antes(evidencia):
-    return any*
-        [
-            evidencia.get("antes_1") is not None,
-        *   evidencia.get("antes_2") is not*None,
-        ]
-    )
+def hay_fotos_antes(evidencia):
+    if evidencia.get("antes_1") is not None:
+        return True
+
+    if evidencia.get("antes_2") is not None:
+        return True
+
+    return False
 
 
-def hay_fo*os_despues(evidencia):
-    return *ny(
-        [
-            evidencia.get("despues_1") is not None,
-   *        evidencia.get("despues_2")*is not None,
-        ]
-    )
+def hay_fotos_despues(evidencia):
+    if evidencia.get("despues_1") is not None:
+        return True
+
+    if evidencia.get("despues_2") is not None:
+        return True
+
+    return False
 
 
-# =*==================================*====================
+# =========================================================
 # PDF
-# =====*==================================*================
-def encabezado_pd*(c, titulo):
-    logo_path = obten*r_logo_path()
-    logo_temp = None*
-    title_x = MARGIN_LEFT
-    tit*e_y = 750
-    line_y = 700
+# =========================================================
+def encabezado_pdf(c, titulo):
+    y = 750
 
-    if*logo_path:
+    logo_path = obtener_logo_path()
+    logo_temp = None
+
+    titulo_x = MARGIN_LEFT
+
+    if logo_path:
         try:
-          * logo_temp = crear_logo_temporal(l*go_path)
-            logo_reader =*ImageReader(logo_temp)
+            logo_temp = crear_logo_temporal(logo_path)
 
-          * logo_w, logo_h = logo_reader.getS*ze()
+            logo_reader = ImageReader(logo_temp)
+            logo_w, logo_h = logo_reader.getSize()
 
-            logo_max_w = 115*            logo_max_h = 45
+            logo_max_w = 105
+            logo_max_h = 42
 
-     *      ratio = min(logo_max_w / log*_w, logo_max_h / logo_h)
+            logo_ratio = min(logo_max_w / logo_w, logo_max_h / logo_h)
 
-        *   draw_w = logo_w * ratio
-       *    draw_h = logo_h * ratio
+            logo_draw_w = logo_w * logo_ratio
+            logo_draw_h = logo_h * logo_ratio
 
-     *      logo_x = MARGIN_LEFT
-       *    logo_y = 715
+            logo_x = MARGIN_LEFT
+            logo_y = 715
 
-            c.dr*wImage(
-                logo_reade*,
+            c.drawImage(
+                logo_reader,
                 logo_x,
-        *       logo_y,
-                wid*h=draw_w,
-                height=d*aw_h,
-                preserveAspe*tRatio=True,
-                mask=*auto"
+                logo_y,
+                width=logo_draw_w,
+                height=logo_draw_h,
+                preserveAspectRatio=True,
+                mask="auto"
             )
 
-            t*tle_x = MARGIN_LEFT + 135
+            titulo_x = MARGIN_LEFT + 130
 
-       *except Exception:
-            titl*_x = MARGIN_LEFT
+        except Exception:
+            titulo_x = MARGIN_LEFT
 
-        finally:*            if logo_temp and os.pa*h.exists(logo_temp):
-             *  try:
-                    os.remo*e(logo_temp)
-                excep* Exception:
-                    pa*s
+        finally:
+            if logo_temp and os.path.exists(logo_temp):
+                try:
+                    os.remove(logo_temp)
+                except Exception:
+                    pass
 
-    c.setFillColor(colors.HexCo*or("#1E3A5F"))
-    c.setFont("Helv*tica-Bold", 15)
-    c.drawString(t*tle_x, title_y, normalizar_texto(t*tulo))
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.setFont("Helvetica-Bold", 15)
+    c.drawString(titulo_x, y, normalizar_texto(titulo))
 
-    c.setFillColor(colors.*exColor("#5B6573"))
-    c.setFont(*Helvetica", 9)
-    fecha_generado * datetime.now().strftime("%d/%m/%Y*%H:%M:%S")
-    c.drawString(title_*, title_y - 18, f"Generado el {fec*a_generado}")
+    y -= 18
 
-    c.setStrokeColo*(colors.HexColor("#D9E2EC"))
-    c*line(MARGIN_LEFT, line_y, PDF_WIDT* - MARGIN_RIGHT, line_y)
+    c.setFillColor(colors.HexColor("#5B6573"))
+    c.setFont("Helvetica", 9)
+    fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    c.drawString(titulo_x, y, f"Generado el {fecha_generado}")
 
-    retu*n line_y - 25
+    y = 700
+
+    c.setStrokeColor(colors.HexColor("#D9E2EC"))
+    c.line(MARGIN_LEFT, y, PDF_WIDTH - MARGIN_RIGHT, y)
+
+    y -= 25
+
+    return y
 
 
-def nueva_pagina(c* y, espacio=120):
-    if y < espac*o:
+def nueva_pagina(c, y, espacio=120):
+    if y < espacio:
         c.showPage()
-        y * encabezado_pdf(c, "REPORTE FOTOGR*FICO - CONTINUACION")
+        y = encabezado_pdf(c, "REPORTE FOTOGRAFICO - CONTINUACION")
 
-    return *
+    return y
 
 
-def titulo_seccion(c, titulo, y*:
+def titulo_seccion(c, titulo, y):
     y = nueva_pagina(c, y, 80)
 
-*   c.setFont("Helvetica-Bold", 13)*    c.setFillColor(colors.HexColor*"#1E3A5F"))
-    c.drawString(MARGI*_LEFT, y, normalizar_texto(titulo)*
+    c.setFont("Helvetica-Bold", 13)
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.drawString(MARGIN_LEFT, y, normalizar_texto(titulo))
 
     y -= 18
 
     return y
 
 
-def *inea_pdf(c, etiqueta, valor, y):
- *  y = nueva_pagina(c, y, 70)
+def linea_pdf(c, etiqueta, valor, y):
+    y = nueva_pagina(c, y, 70)
 
-    *.setFont("Helvetica-Bold", 9)
-    *.setFillColor(colors.HexColor("#1E*A5F"))
-    c.drawString(MARGIN_LEF*, y, normalizar_texto(f"{etiqueta}*"))
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+    c.drawString(MARGIN_LEFT, y, normalizar_texto(f"{etiqueta}:"))
 
-    c.setFont("Helvetica", 9)*    c.setFillColor(colors.black)
- *  c.drawString(MARGIN_LEFT + 125, *, normalizar_texto(valor))
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.black)
+    c.drawString(MARGIN_LEFT + 125, y, normalizar_texto(valor))
 
-    y *= 15
+    y -= 15
 
     return y
 
 
-def bloque_te*to_pdf(c, titulo, texto, y):
-    y*= titulo_seccion(c, titulo, y)
+def bloque_texto_pdf(c, titulo, texto, y):
+    y = titulo_seccion(c, titulo, y)
 
-  * c.setFont("Helvetica", 9)
-    c.s*tFillColor(colors.black)
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.black)
 
-    for *inea in dividir_texto(texto):
-    *   y = nueva_pagina(c, y, 70)
-    *   c.drawString(MARGIN_LEFT, y, no*malizar_texto(linea))
-        y -=*13
+    for linea in dividir_texto(texto):
+        y = nueva_pagina(c, y, 70)
+        c.drawString(MARGIN_LEFT, y, normalizar_texto(linea))
+        y -= 13
 
     y -= 10
 
     return y
 
 
-de* dibujar_imagen_en_celda(c, upload*d_file, x, y, ancho, alto):
-    te*p_path = None
+def dibujar_imagen_en_celda(c, uploaded_file, x, y, ancho, alto):
+    temp_path = None
 
     try:
-        te*p_path = comprimir_imagen_a_temp(uploaded_file)
+        temp_path = comprimir_imagen_a_temp(uploaded_file)
         img_reader = ImageReader(temp_path)
 
         img_w, img_h = img_reader.getSize()
@@ -658,8 +680,9 @@ def fila_dos_fotos_pdf(c, titulo_izq, archivo_izq, titulo_der, archivo_der, y):
     if archivo_izq is None and archivo_der is None:
         return y
 
+    alto_titulo = 14
     alto_img = 145
-    alto_total = alto_img + 38
+    alto_total = alto_titulo + alto_img + 24
 
     y = nueva_pagina(c, y, alto_total + MARGIN_BOTTOM)
 
@@ -927,13 +950,6 @@ def main():
         """,
         unsafe_allow_html=True
     )
-
-    logo_detectado = obtener_logo_path()
-
-    if logo_detectado:
-        st.success(f"Logo detectado para PDF: {os.path.basename(logo_detectado)}")
-    else:
-        st.warning("No se detecto logo BESCO en el repositorio. Verifica que el archivo del logo este en la raiz o en una carpeta del proyecto.")
 
     st.page_link(
         "portal.py",
