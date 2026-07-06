@@ -420,7 +420,7 @@ def existe_logo_besco():
 
 def crear_logo_temporal():
     imagen = Image.open(LOGO_PATH).convert("RGB")
-    imagen.thumbnail((1000, 1000))
+    imagen.thumbnail((1200, 1200))
 
     temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
     temp_logo.close()
@@ -428,7 +428,7 @@ def crear_logo_temporal():
     imagen.save(
         temp_logo.name,
         format="JPEG",
-        quality=90,
+        quality=95,
         optimize=True
     )
 
@@ -469,7 +469,7 @@ def hay_fotos_despues(evidencia):
 # =========================================================
 def encabezado_pdf(c, titulo):
     title_y = 750
-    line_y = 700
+    line_y = 680
     title_x = MARGIN_LEFT
 
     logo_temp = None
@@ -480,8 +480,11 @@ def encabezado_pdf(c, titulo):
             logo_reader = ImageReader(logo_temp)
             logo_w, logo_h = logo_reader.getSize()
 
-            logo_max_w = 115
-            logo_max_h = 45
+            # Logo aumentado 85%
+            # Antes aproximado: 115 x 45
+            # Ahora aproximado: 213 x 83
+            logo_max_w = 213
+            logo_max_h = 83
 
             ratio = min(logo_max_w / logo_w, logo_max_h / logo_h)
 
@@ -489,7 +492,7 @@ def encabezado_pdf(c, titulo):
             draw_h = logo_h * ratio
 
             logo_x = MARGIN_LEFT
-            logo_y = 715
+            logo_y = 695
 
             c.drawImage(
                 logo_reader,
@@ -501,7 +504,7 @@ def encabezado_pdf(c, titulo):
                 mask="auto"
             )
 
-            title_x = MARGIN_LEFT + 135
+            title_x = MARGIN_LEFT + 235
 
         except Exception:
             title_x = MARGIN_LEFT
@@ -514,16 +517,27 @@ def encabezado_pdf(c, titulo):
                     pass
 
     c.setFillColor(colors.HexColor("#1E3A5F"))
-    c.setFont("Helvetica-Bold", 15)
+    c.setFont("Helvetica-Bold", 14)
     c.drawString(title_x, title_y, normalizar_texto(titulo))
 
     c.setFillColor(colors.HexColor("#5B6573"))
     c.setFont("Helvetica", 9)
+
     fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    c.drawString(title_x, title_y - 18, f"Generado el {fecha_generado}")
+
+    c.drawString(
+        title_x,
+        title_y - 18,
+        f"Generado el {fecha_generado}"
+    )
 
     c.setStrokeColor(colors.HexColor("#D9E2EC"))
-    c.line(MARGIN_LEFT, line_y, PDF_WIDTH - MARGIN_RIGHT, line_y)
+    c.line(
+        MARGIN_LEFT,
+        line_y,
+        PDF_WIDTH - MARGIN_RIGHT,
+        line_y
+    )
 
     return line_y - 25
 
