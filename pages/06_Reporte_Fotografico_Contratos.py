@@ -24,6 +24,7 @@ LAYOUT = "centered"
 PDF_WIDTH, PDF_HEIGHT = letter
 MARGIN_LEFT = 45
 MARGIN_RIGHT = 45
+MARGIN_BOTTOM = 55
 
 MAX_IMAGE_SIZE = (1000, 1000)
 IMAGE_QUALITY = 65
@@ -47,7 +48,11 @@ st.set_page_config(
 # =========================================================
 CONTRATOS_CONFIG = {
     "Santander": {
-        "destinatarios": ["gerardo.mendez@besco.mx"],
+        "destinatarios": [
+            "gerardo.mendez@besco.mx",
+            "alejandro.ramirez@besco.mx",
+            "patricia.cortes@besco.mx",
+        ],
         "estatus": [
             "Servicio concluido",
             "Servicio concluido con observaciones",
@@ -57,7 +62,10 @@ CONTRATOS_CONFIG = {
         ],
     },
     "MacStore": {
-        "destinatarios": ["gerardo.mendez@besco.mx"],
+        "destinatarios": [
+            "gerardo.mendez@besco.mx",
+            "andres.mayagoitia@besco.mx",
+        ],
         "estatus": [
             "Servicio concluido",
             "Servicio concluido con observaciones",
@@ -67,7 +75,9 @@ CONTRATOS_CONFIG = {
         ],
     },
     "Samsung": {
-        "destinatarios": ["gerardo.mendez@besco.mx"],
+        "destinatarios": [
+            "gerardo.mendez@besco.mx",
+        ],
         "estatus": [
             "Servicio concluido",
             "Servicio concluido con observaciones",
@@ -82,7 +92,6 @@ CONTRATOS_CONFIG = {
 # =========================================================
 # ALCANCES POR CONTRATO
 # Todas las evidencias fotograficas son opcionales.
-# required se mantiene solo como referencia visual.
 # =========================================================
 ALCANCES_POR_CONTRATO = {
     "Santander": [
@@ -426,8 +435,40 @@ def comprimir_imagen_a_temp(uploaded_file):
     return temp_img.name
 
 
-def existe_archivo(uploaded_file):
-    return uploaded_file is not None
+def hay_fotos_en_item(evidencia):
+    if evidencia.get("antes_1") is not None:
+        return True
+
+    if evidencia.get("antes_2") is not None:
+        return True
+
+    if evidencia.get("despues_1") is not None:
+        return True
+
+    if evidencia.get("despues_2") is not None:
+        return True
+
+    return False
+
+
+def hay_fotos_antes(evidencia):
+    if evidencia.get("antes_1") is not None:
+        return True
+
+    if evidencia.get("antes_2") is not None:
+        return True
+
+    return False
+
+
+def hay_fotos_despues(evidencia):
+    if evidencia.get("despues_1") is not None:
+        return True
+
+    if evidencia.get("despues_2") is not None:
+        return True
+
+    return False
 
 
 # =========================================================
@@ -509,18 +550,7 @@ def bloque_texto_pdf(c, titulo, texto, y):
     return y
 
 
-def imagen_pdf(c, titulo, uploaded_file, y):
-    if uploaded_file is None:
-        return y
-
-    y = nueva_pagina(c, y, 240)
-
-    c.setFont("Helvetica-Bold", 10)
-    c.setFillColor(colors.HexColor("#1E3A5F"))
-    c.drawString(MARGIN_LEFT, y, normalizar_texto(titulo))
-
-    y -= 10
-
+def dibujar_imagen_en_celda(c, uploaded_file, x, y, ancho, alto):
     temp_path = None
 
     try:
@@ -528,38 +558,31 @@ def imagen_pdf(c, titulo, uploaded_file, y):
         img_reader = ImageReader(temp_path)
 
         img_w, img_h = img_reader.getSize()
-
-        ancho_max = 250
-        alto_max = 160
-
-        ratio = min(ancho_max / img_w, alto_max / img_h)
+        ratio = min(ancho / img_w, alto / img_h)
 
         draw_w = img_w * ratio
         draw_h = img_h * ratio
 
-        y -= draw_h + 8
+        x_img = x + (ancho - draw_w) / 2
+        y_img = y + (alto - draw_h) / 2
 
         c.drawImage(
             img_reader,
-            MARGIN_LEFT,
-            y,
+            x_img,
+            y_img,
             width=draw_w,
             height=draw_h,
             preserveAspectRatio=True,
             mask="auto"
         )
 
-        y -= 18
-
-    except Exception as error:
+    except Exception:
+        c.setStrokeColor(colors.HexColor("#B8C2CC"))
+        c.setFillColor(colors.HexColor("#F4F6F8"))
+        c.rect(x, y, ancho, alto, fill=1, stroke=1)
+        c.setFillColor(colors.HexColor("#667085"))
         c.setFont("Helvetica", 8)
-        c.setFillColor(colors.red)
-        c.drawString(
-            MARGIN_LEFT,
-            y - 20,
-            normalizar_texto(f"No se pudo insertar imagen: {error}")
-        )
-        y -= 40
+        c.drawCentredString(x + ancho / 2, y + alto / 2, "Error imagen")
 
     finally:
         if temp_path and os.path.exists(temp_path):
@@ -567,6 +590,43 @@ def imagen_pdf(c, titulo, uploaded_file, y):
                 os.remove(temp_path)
             except Exception:
                 pass
+
+
+def fila_dos_fotos_pdf(c, titulo_izq, archivo_izq, titulo_der, archivo_der, y):
+    if archivo_izq is None and archivo_der is None:
+        return y
+
+    alto_titulo = 14
+    alto_img = 145
+    alto_total = alto_titulo + alto_img + 24
+
+    y = nueva_pagina(c, y, alto_total + MARGIN_BOTTOM)
+
+    ancho_total = PDF_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
+    espacio = 18
+    ancho_celda = (ancho_total - espacio) / 2
+
+    x_izq = MARGIN_LEFT
+    x_der = MARGIN_LEFT + ancho_celda + espacio
+
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(colors.HexColor("#1E3A5F"))
+
+    if archivo_izq is not None:
+        c.drawString(x_izq, y, normalizar_texto(titulo_izq))
+
+    if archivo_der is not None:
+        c.drawString(x_der, y, normalizar_texto(titulo_der))
+
+    y_img = y - alto_img - 8
+
+    if archivo_izq is not None:
+        dibujar_imagen_en_celda(c, archivo_izq, x_izq, y_img, ancho_celda, alto_img)
+
+    if archivo_der is not None:
+        dibujar_imagen_en_celda(c, archivo_der, x_der, y_img, ancho_celda, alto_img)
+
+    y = y_img - 18
 
     return y
 
@@ -613,26 +673,49 @@ def crear_pdf(
 
     y -= 8
 
-    y = titulo_seccion(c, "Alcance y evidencias", y)
+    y = titulo_seccion(c, "Alcance y evidencias fotograficas", y)
+
+    total_segmentos_con_foto = 0
 
     for item in alcance_items:
         numero = item["numero"]
         momento = item["momento"]
         actividad = item["actividad"]
+        evidencia = evidencias_por_item.get(numero, {})
 
-        y = nueva_pagina(c, y, 160)
+        if not hay_fotos_en_item(evidencia):
+            continue
+
+        total_segmentos_con_foto += 1
+
+        y = nueva_pagina(c, y, 170)
 
         y = linea_pdf(c, "Renglon", str(numero), y)
         y = linea_pdf(c, "Momento", momento, y)
-        y = linea_pdf(c, "Tipo evidencia", "Opcional", y)
         y = bloque_texto_pdf(c, "Actividad critica", actividad, y)
 
-        evidencia = evidencias_por_item.get(numero, {})
+        if hay_fotos_antes(evidencia):
+            y = fila_dos_fotos_pdf(
+                c,
+                f"{momento} - Antes 1",
+                evidencia.get("antes_1"),
+                f"{momento} - Antes 2",
+                evidencia.get("antes_2"),
+                y
+            )
 
-        y = imagen_pdf(c, f"{momento} - Antes 1", evidencia.get("antes_1"), y)
-        y = imagen_pdf(c, f"{momento} - Antes 2", evidencia.get("antes_2"), y)
-        y = imagen_pdf(c, f"{momento} - Despues 1", evidencia.get("despues_1"), y)
-        y = imagen_pdf(c, f"{momento} - Despues 2", evidencia.get("despues_2"), y)
+        if hay_fotos_despues(evidencia):
+            y = fila_dos_fotos_pdf(
+                c,
+                f"{momento} - Despues 1",
+                evidencia.get("despues_1"),
+                f"{momento} - Despues 2",
+                evidencia.get("despues_2"),
+                y
+            )
+
+    if total_segmentos_con_foto == 0:
+        y = linea_pdf(c, "Evidencias", "No se adjuntaron fotografias.", y)
 
     if df_materiales is not None and not df_materiales.empty:
         y = titulo_seccion(c, "Materiales utilizados", y)
@@ -794,7 +877,7 @@ def main():
         """
         <div class="info-box">
             Version ligera para celular. Todas las fotos son opcionales.
-            Si se cargan fotos, se integraran al PDF. Si no se cargan, el PDF se genera solo con datos y alcance.
+            En el PDF se acomodan dos fotos por fila y solo se muestran los segmentos que tengan fotografias.
         </div>
         """,
         unsafe_allow_html=True
@@ -861,6 +944,8 @@ def main():
                 """
                 <div class="optional-box">
                     Fotos opcionales: puedes cargar hasta 2 fotos antes y 2 fotos despues.
+                    En el PDF se mostraran dos fotos por fila.
+                    Si este segmento no tiene fotos, no aparecera en el apartado fotografico del PDF.
                 </div>
                 """,
                 unsafe_allow_html=True
