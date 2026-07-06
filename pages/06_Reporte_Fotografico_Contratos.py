@@ -81,8 +81,8 @@ CONTRATOS_CONFIG = {
 
 # =========================================================
 # ALCANCES POR CONTRATO
-# required=True  -> evidencia obligatoria
-# required=False -> evidencia opcional
+# Todas las evidencias fotograficas son opcionales.
+# required se mantiene solo como referencia visual.
 # =========================================================
 ALCANCES_POR_CONTRATO = {
     "Santander": [
@@ -90,37 +90,37 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse con gerente encargado. Confirmar OT/folio y alcance de visita.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 2,
             "momento": "Seguridad",
             "actividad": "Induccion rapida: zonas restringidas, riesgos, energia, alturas y agua.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 3,
             "momento": "Reconocimiento",
             "actividad": "Recorrido inicial por areas aplicables segun CHECK LIST.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 4,
             "momento": "01_Electrico",
             "actividad": "Instalaciones electricas y tableros.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 5,
             "momento": "02_Canceleria_Vidrieria",
             "actividad": "Perfiles, cristales y herrajes.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 6,
             "momento": "03_Hidrosanitaria",
             "actividad": "Acometida y bajadas pluviales.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 7,
@@ -132,31 +132,31 @@ ALCANCES_POR_CONTRATO = {
             "numero": 8,
             "momento": "04_Mobiliario",
             "actividad": "Mobiliario y cerrajeria basica.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 9,
             "momento": "05_Generales",
             "actividad": "Acabados, limpieza, pintura y reparaciones generales.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 10,
             "momento": "06_AA_Parametros",
             "actividad": "Equipos de aire acondicionado con toma de parametros: minisplit, fan and coil, manejadora, aire lavado y chiller.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 11,
             "momento": "07_UPS",
             "actividad": "Revision de UPS y toma de parametros.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 12,
             "momento": "09_Depositos_Agua_Cisterna",
             "actividad": "Depositos de agua: cisterna.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 13,
@@ -174,7 +174,7 @@ ALCANCES_POR_CONTRATO = {
             "numero": 15,
             "momento": "Limpieza y pruebas",
             "actividad": "Retirar residuos, normalizar areas y probar equipos intervenidos.",
-            "required": True,
+            "required": False,
         },
     ],
     "MacStore": [
@@ -182,31 +182,31 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse en tienda y confirmar folio, alcance y responsable en sitio.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 2,
             "momento": "Inspeccion inicial",
             "actividad": "Realizar recorrido inicial y levantar evidencia del area intervenida.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 3,
             "momento": "Ejecucion",
             "actividad": "Ejecutar actividades correctivas, preventivas o de levantamiento segun servicio.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 4,
             "momento": "Pruebas",
             "actividad": "Validar funcionamiento, limpieza del area y condiciones finales.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 5,
             "momento": "Cierre",
             "actividad": "Documentar hallazgos, evidencias, actividades y cierre con responsable.",
-            "required": True,
+            "required": False,
         },
     ],
     "Samsung": [
@@ -214,31 +214,31 @@ ALCANCES_POR_CONTRATO = {
             "numero": 1,
             "momento": "Arribo",
             "actividad": "Presentarse en sitio y confirmar folio, alcance y responsable.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 2,
             "momento": "Diagnostico",
             "actividad": "Realizar diagnostico inicial y documentar condiciones encontradas.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 3,
             "momento": "Ejecucion",
             "actividad": "Ejecutar instalacion, validacion, retiro o correccion segun servicio.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 4,
             "momento": "Pruebas",
             "actividad": "Realizar pruebas de funcionamiento y documentar resultado.",
-            "required": True,
+            "required": False,
         },
         {
             "numero": 5,
             "momento": "Reporte",
             "actividad": "Registrar evidencias, observaciones y cierre del servicio.",
-            "required": True,
+            "required": False,
         },
     ],
 }
@@ -619,13 +619,12 @@ def crear_pdf(
         numero = item["numero"]
         momento = item["momento"]
         actividad = item["actividad"]
-        required = item.get("required", True)
 
         y = nueva_pagina(c, y, 160)
 
         y = linea_pdf(c, "Renglon", str(numero), y)
         y = linea_pdf(c, "Momento", momento, y)
-        y = linea_pdf(c, "Tipo evidencia", "Obligatoria" if required else "Opcional", y)
+        y = linea_pdf(c, "Tipo evidencia", "Opcional", y)
         y = bloque_texto_pdf(c, "Actividad critica", actividad, y)
 
         evidencia = evidencias_por_item.get(numero, {})
@@ -751,7 +750,7 @@ def enviar_correo(
 # =========================================================
 # VALIDACION
 # =========================================================
-def validar_reporte(contrato, folio, sucursal, tecnico, evidencias_por_item, alcance_items):
+def validar_reporte(contrato, folio, sucursal, tecnico):
     faltantes = []
 
     if not contrato:
@@ -765,28 +764,6 @@ def validar_reporte(contrato, folio, sucursal, tecnico, evidencias_por_item, alc
 
     if not tecnico.strip():
         faltantes.append("Tecnico asignado")
-
-    for item in alcance_items:
-        required = item.get("required", True)
-
-        if not required:
-            continue
-
-        numero = item["numero"]
-        momento = item["momento"]
-        evidencia = evidencias_por_item.get(numero, {})
-
-        if not existe_archivo(evidencia.get("antes_1")):
-            faltantes.append(f"{momento} - Antes 1")
-
-        if not existe_archivo(evidencia.get("antes_2")):
-            faltantes.append(f"{momento} - Antes 2")
-
-        if not existe_archivo(evidencia.get("despues_1")):
-            faltantes.append(f"{momento} - Despues 1")
-
-        if not existe_archivo(evidencia.get("despues_2")):
-            faltantes.append(f"{momento} - Despues 2")
 
     return faltantes
 
@@ -816,8 +793,8 @@ def main():
     st.markdown(
         """
         <div class="info-box">
-            Version ligera para celular. El alcance cambia segun el contrato seleccionado.
-            Para cada renglon del alcance se solicitan 2 fotos antes y 2 fotos despues.
+            Version ligera para celular. Todas las fotos son opcionales.
+            Si se cargan fotos, se integraran al PDF. Si no se cargan, el PDF se genera solo con datos y alcance.
         </div>
         """,
         unsafe_allow_html=True
@@ -864,7 +841,7 @@ def main():
         <div class="info-box">
             <strong>Contrato seleccionado:</strong> {contrato}<br>
             <strong>Renglones del alcance:</strong> {len(alcance_items)}<br>
-            Los renglones opcionales no bloquean la generacion del PDF.
+            Todas las evidencias fotograficas son opcionales.
         </div>
         """,
         unsafe_allow_html=True
@@ -876,32 +853,18 @@ def main():
         numero = item["numero"]
         momento = item["momento"]
         actividad = item["actividad"]
-        required = item.get("required", True)
 
-        titulo_expander = f"{numero}. {momento}"
-
-        if not required:
-            titulo_expander = f"{numero}. {momento} (Opcional)"
+        titulo_expander = f"{numero}. {momento} (Fotos opcionales)"
 
         with st.expander(titulo_expander, expanded=False):
-            if required:
-                st.markdown(
-                    """
-                    <div class="warning-box">
-                        Evidencia obligatoria: 2 fotos antes y 2 fotos despues.
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    """
-                    <div class="optional-box">
-                        Evidencia opcional: puede cargarse si aplica.
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+            st.markdown(
+                """
+                <div class="optional-box">
+                    Fotos opcionales: puedes cargar hasta 2 fotos antes y 2 fotos despues.
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
             st.markdown(
                 f"""
@@ -914,25 +877,25 @@ def main():
             )
 
             antes_1 = st.file_uploader(
-                f"{momento} - Antes 1",
+                f"{momento} - Antes 1 opcional",
                 type=["jpg", "jpeg", "png"],
                 key=f"{contrato}_{numero}_antes_1"
             )
 
             antes_2 = st.file_uploader(
-                f"{momento} - Antes 2",
+                f"{momento} - Antes 2 opcional",
                 type=["jpg", "jpeg", "png"],
                 key=f"{contrato}_{numero}_antes_2"
             )
 
             despues_1 = st.file_uploader(
-                f"{momento} - Despues 1",
+                f"{momento} - Despues 1 opcional",
                 type=["jpg", "jpeg", "png"],
                 key=f"{contrato}_{numero}_despues_1"
             )
 
             despues_2 = st.file_uploader(
-                f"{momento} - Despues 2",
+                f"{momento} - Despues 2 opcional",
                 type=["jpg", "jpeg", "png"],
                 key=f"{contrato}_{numero}_despues_2"
             )
@@ -958,10 +921,7 @@ def main():
             if despues_2:
                 cargadas += 1
 
-            if cargadas == 4:
-                st.success("Evidencia completa para este renglon.")
-            else:
-                st.warning(f"Evidencias cargadas: {cargadas} de 4.")
+            st.info(f"Fotos cargadas en este renglon: {cargadas} de 4 opcionales.")
 
     st.divider()
 
@@ -1014,23 +974,18 @@ def main():
         contrato=contrato,
         folio=folio,
         sucursal=sucursal,
-        tecnico=tecnico,
-        evidencias_por_item=evidencias_por_item,
-        alcance_items=alcance_items
+        tecnico=tecnico
     )
 
     if faltantes:
         st.markdown(
             f"""
             <div class="warning-box">
-                Faltan campos o evidencias obligatorias: {", ".join(faltantes[:20])}
+                Faltan campos obligatorios: {", ".join(faltantes)}
             </div>
             """,
             unsafe_allow_html=True
         )
-
-        if len(faltantes) > 20:
-            st.warning(f"Hay {len(faltantes)} faltantes en total.")
     else:
         st.markdown(
             """
@@ -1041,18 +996,11 @@ def main():
             unsafe_allow_html=True
         )
 
-    permitir_incompleto = st.checkbox(
-        "Permitir generar PDF aunque falten campos/evidencias obligatorias",
-        value=True
-    )
-
-    puede_generar = permitir_incompleto or not faltantes
-
     generar = st.button(
         "📄 Generar PDF",
         type="primary",
         use_container_width=True,
-        disabled=not puede_generar
+        disabled=bool(faltantes)
     )
 
     if generar:
