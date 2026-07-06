@@ -29,6 +29,18 @@ MARGIN_BOTTOM = 55
 MAX_IMAGE_SIZE = (1000, 1000)
 IMAGE_QUALITY = 65
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+LOGO_CANDIDATOS = [
+    "logo besco 2026.jpeg",
+    "logo besco 2026.jpg",
+    "logo_besco_2026.jpeg",
+    "logo_besco_2026.jpg",
+    "logo.jpeg",
+    "logo.jpg",
+    "logo.png",
+]
+
 TIPOS_SERVICIO = [
     "Correctivo",
     "Preventivo",
@@ -416,6 +428,33 @@ def dividir_texto(texto, max_chars=90):
     return lineas
 
 
+def obtener_logo_path():
+    for nombre_logo in LOGO_CANDIDATOS:
+        ruta_logo = os.path.join(ROOT_DIR, nombre_logo)
+
+        if os.path.exists(ruta_logo):
+            return ruta_logo
+
+    return None
+
+
+def crear_logo_temporal(ruta_logo):
+    imagen = Image.open(ruta_logo).convert("RGB")
+    imagen.thumbnail((900, 900))
+
+    temp_logo = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+    temp_logo.close()
+
+    imagen.save(
+        temp_logo.name,
+        format="JPEG",
+        quality=85,
+        optimize=True
+    )
+
+    return temp_logo.name
+
+
 def comprimir_imagen_a_temp(uploaded_file):
     uploaded_file.seek(0)
 
@@ -477,18 +516,63 @@ def hay_fotos_despues(evidencia):
 def encabezado_pdf(c, titulo):
     y = 750
 
+    logo_path = obtener_logo_path()
+    logo_temp = None
+
+    titulo_x = MARGIN_LEFT
+
+    if logo_path:
+        try:
+            logo_temp = crear_logo_temporal(logo_path)
+
+            logo_reader = ImageReader(logo_temp)
+            logo_w, logo_h = logo_reader.getSize()
+
+            logo_max_w = 105
+            logo_max_h = 42
+
+            logo_ratio = min(logo_max_w / logo_w, logo_max_h / logo_h)
+
+            logo_draw_w = logo_w * logo_ratio
+            logo_draw_h = logo_h * logo_ratio
+
+            logo_x = MARGIN_LEFT
+            logo_y = 715
+
+            c.drawImage(
+                logo_reader,
+                logo_x,
+                logo_y,
+                width=logo_draw_w,
+                height=logo_draw_h,
+                preserveAspectRatio=True,
+                mask="auto"
+            )
+
+            titulo_x = MARGIN_LEFT + 130
+
+        except Exception:
+            titulo_x = MARGIN_LEFT
+
+        finally:
+            if logo_temp and os.path.exists(logo_temp):
+                try:
+                    os.remove(logo_temp)
+                except Exception:
+                    pass
+
     c.setFillColor(colors.HexColor("#1E3A5F"))
     c.setFont("Helvetica-Bold", 15)
-    c.drawString(MARGIN_LEFT, y, normalizar_texto(titulo))
+    c.drawString(titulo_x, y, normalizar_texto(titulo))
 
     y -= 18
 
     c.setFillColor(colors.HexColor("#5B6573"))
     c.setFont("Helvetica", 9)
     fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    c.drawString(MARGIN_LEFT, y, f"Generado el {fecha_generado}")
+    c.drawString(titulo_x, y, f"Generado el {fecha_generado}")
 
-    y -= 20
+    y = 700
 
     c.setStrokeColor(colors.HexColor("#D9E2EC"))
     c.line(MARGIN_LEFT, y, PDF_WIDTH - MARGIN_RIGHT, y)
