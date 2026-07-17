@@ -856,6 +856,7 @@ LISTA_OFICINAS = [
     "Emerson",
     "Odoo",
     "Tampico",
+    "Telmex",
 ]
 
 MAPEO_CORREOS = {
@@ -907,6 +908,11 @@ MAPEO_CORREOS = {
         "ingrid.lucio@besco.mx",
         "joel.perez@besco.mx",
         "gerardo.mendez@besco.mx",
+    ],    
+    "Telmex": [
+        "juan.perez@besco.mx",
+        "dario.perez@besco.mx",
+        "gerardo.mendez@besco.mx"
     ],
 }
 
