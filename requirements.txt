@@ -8,3 +8,4 @@ pillow
 google-generativeai
 openpyxl
 reportlab
+requests
