@@ -203,15 +203,15 @@ def contar_archivos(archivos) -> int:
 
 
 def mostrar_estado_fotos(nombre: str, archivos) -> None:
-    cantidad = contar_archivos(archivos)
+    skew = contar_archivos(archivos)
 
-    if cantidad == 0:
+    if skew == 0:
         st.caption(f"{nombre}: sin archivos cargados.")
-    elif cantidad <= MAX_FOTOS_RECOMENDADAS:
-        st.success(f"{nombre}: {cantidad} archivo(s) cargado(s).")
+    elif skew <= MAX_FOTOS_RECOMENDADAS:
+        st.success(f"{nombre}: {skew} archivo(s) cargado(s).")
     else:
         st.warning(
-            f"{nombre}: {cantidad} archivo(s) cargado(s). "
+            f"{nombre}: {skew} archivo(s) cargado(s). "
             f"Para celular se recomienda máximo {MAX_FOTOS_RECOMENDADAS}."
         )
 
@@ -385,10 +385,6 @@ class BESCO_PDF(FPDF):
         self.set_text_color(0, 0, 0)
 
     def photo_grid(self, title, photos):
-        """
-        Grilla ligera de fotos.
-        Comprime cada imagen antes de insertarla.
-        """
         if not photos:
             return
 
@@ -1098,11 +1094,12 @@ def main():
 
             texto_defecto = LEYENDAS_DEFAULT.get(esp, "")
 
+            # CORRECCIÓN AQUÍ: Cambiada la clave dinámica por f"act_{i}"
             actividades = st.text_area(
                 "Actividades Realizadas",
                 value=texto_defecto,
                 height=100,
-                key=f"act_{i}_{esp}"
+                key=f"act_{i}"
             )
 
             com = st.text_area(
@@ -1150,9 +1147,8 @@ def main():
                     "tag": tag,
                     "marca": marca,
                     "cap": cap,
-                    "com": com,
-                    "fa": fa,
-                    "fd": fd,
+                    "fa": fa or [],
+                    "fd": fd or [],
                 }
             )
 
@@ -1161,177 +1157,93 @@ def main():
         unsafe_allow_html=True
     )
 
-    usar_materiales = st.checkbox(
-        "Agregar materiales utilizados",
-        value=False
+    if "df_materiales" not in st.session_state:
+        st.session_state.df_materiales = pd.DataFrame(
+            columns=["Cantidad", "Descripción"]
+        )
+
+    df_mat = st.data_editor(
+        st.session_state.df_materiales,
+        num_rows="dynamic",
+        key="editor_materiales",
+        use_container_width=True
     )
 
-    if usar_materiales:
-        df_mat = st.data_editor(
-            pd.DataFrame(columns=["Cantidad", "Descripción"]),
-            num_rows="dynamic",
-            use_container_width=True
-        )
-    else:
-        df_mat = pd.DataFrame(columns=["Cantidad", "Descripción"])
-
     st.markdown(
-        '<div class="section-title">5. Destinatarios</div>',
+        '<div class="section-title">5. Finalizar Reporte</div>',
         unsafe_allow_html=True
     )
 
-    dest_oficina = MAPEO_CORREOS.get(oficina, ["gerardo.mendez@besco.mx"])
+    correos_defecto = MAPEO_CORREOS.get(oficina, [])
 
-    if "gerardo.mendez@besco.mx" not in dest_oficina:
-        dest_oficina.append("gerardo.mendez@besco.mx")
-
-    st.info(f"Destinatarios automáticos: {', '.join(dest_oficina)}")
+    st.write("**Destinatarios automáticos de la oficina:**")
+    if correos_defecto:
+        for c in correos_defecto:
+            st.markdown(f"- `{c}`")
+    else:
+        st.caption("No hay correos asignados por defecto a esta oficina.")
 
     correos_extra = st.text_input(
-        "Correos adicionales separados por coma"
+        "Correos adicionales (separados por coma)",
+        help="ejemplo1@besco.mx, ejemplo2@besco.mx"
     )
 
-    st.markdown(
-        '<div class="section-title">6. Generar Reporte</div>',
-        unsafe_allow_html=True
-    )
+    if st.button("🚀 Generar PDF y Enviar Reporte", use_container_width=True):
+        if not cliente:
+            st.error("Por favor, ingresa el nombre del Cliente.")
+            return
 
-    faltantes = []
+        if not folio:
+            st.error("Por favor, ingresa el número de Folio / OT / TK.")
+            return
 
-    if not cliente.strip():
-        faltantes.append("Cliente")
+        with st.spinner("Generando documento PDF optimizado..."):
+            pdf_bytes, f_ejec_str = generar_pdf(
+                cliente=cliente,
+                folio=folio,
+                fecha_ejecucion=fecha_ejecucion,
+                oficina=oficina,
+                sucursal=sucursal,
+                tecnico=tecnico,
+                supervisor=supervisor,
+                tipo_serv=tipo_serv,
+                referencia=referencia,
+                equipos_data=equipos_data,
+                df_mat=df_mat,
+                archivos_folio=archivos_folio
+            )
 
-    if not folio.strip():
-        faltantes.append("Folio / OT / TK")
-
-    if faltantes:
         st.markdown(
-            f"""
-            <div class="warning-box">
-                Faltan campos obligatorios: {", ".join(faltantes)}
-            </div>
-            """,
+            '<div class="ok-box">✅ ¡PDF generado con éxito! Puedes descargarlo abajo.</div>',
             unsafe_allow_html=True
         )
-    else:
-        st.markdown(
-            """
-            <div class="ok-box">
-                Datos mínimos completos. Puedes generar el PDF.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
 
-    generar = st.button(
-        "📄 Generar PDF",
-        type="primary",
-        use_container_width=True,
-        disabled=bool(faltantes)
-    )
-
-    if generar:
-        with st.spinner("Generando PDF y comprimiendo imágenes..."):
-            try:
-                pdf_bytes, f_ejec_str = generar_pdf(
-                    cliente=cliente,
-                    folio=folio,
-                    fecha_ejecucion=fecha_ejecucion,
-                    oficina=oficina,
-                    sucursal=sucursal,
-                    tecnico=tecnico,
-                    supervisor=supervisor,
-                    tipo_serv=tipo_serv,
-                    referencia=referencia,
-                    equipos_data=equipos_data,
-                    df_mat=df_mat,
-                    archivos_folio=archivos_folio
-                )
-
-                nom_archivo = limpiar_nombre_archivo(
-                    f"Reporte_BESCO_{cliente}_{folio}.pdf"
-                )
-
-                st.session_state["reporte_general_pdf_bytes"] = pdf_bytes
-                st.session_state["reporte_general_nombre_pdf"] = nom_archivo
-                st.session_state["reporte_general_fecha_ejec"] = f_ejec_str
-                st.session_state["reporte_general_cliente"] = cliente
-                st.session_state["reporte_general_folio"] = folio
-                st.session_state["reporte_general_sucursal"] = sucursal
-                st.session_state["reporte_general_oficina"] = oficina
-                st.session_state["reporte_general_correos_extra"] = correos_extra
-                st.session_state["reporte_general_dest_oficina"] = dest_oficina
-
-                st.success("PDF generado correctamente.")
-
-            except Exception as error:
-                st.error(f"Error al generar el PDF: {error}")
-                st.exception(error)
-
-    if "reporte_general_pdf_bytes" in st.session_state:
-        pdf_bytes = st.session_state["reporte_general_pdf_bytes"]
-        nom_archivo = st.session_state["reporte_general_nombre_pdf"]
+        nombre_limpio = limpiar_nombre_archivo(f"Reporte_{cliente}_{folio}.pdf")
 
         st.download_button(
-            "⬇️ Descargar PDF del Reporte",
+            label="📥 Descargar Reporte PDF",
             data=pdf_bytes,
-            file_name=nom_archivo,
+            file_name=nombre_limpio,
             mime="application/pdf",
             use_container_width=True
         )
 
-        st.markdown(
-            '<div class="section-title">7. Enviar por Correo</div>',
-            unsafe_allow_html=True
-        )
+        with st.spinner("Enviando correo electrónico a los destinatarios..."):
+            exito = enviar_correo(
+                pdf_bytes=pdf_bytes,
+                cliente=cliente,
+                folio=folio,
+                sucursal=sucursal,
+                oficina=oficina,
+                nombre_archivo=nombre_limpio,
+                correos_extra=correos_extra,
+                fecha_ejec=f_ejec_str,
+                lista_destinatarios=correos_defecto
+            )
 
-        st.markdown(
-            """
-            <div class="info-box">
-                El PDF ya fue generado. Si tienes buena conexión, puedes enviarlo por correo.
-                Si falla el envío, descarga el PDF y compártelo manualmente.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        enviar = st.button(
-            "📨 Enviar Reporte por Correo",
-            use_container_width=True
-        )
-
-        if enviar:
-            with st.spinner("Enviando correo..."):
-                correo_enviado = enviar_correo(
-                    pdf_bytes=st.session_state["reporte_general_pdf_bytes"],
-                    cliente=st.session_state["reporte_general_cliente"],
-                    folio=st.session_state["reporte_general_folio"],
-                    sucursal=st.session_state["reporte_general_sucursal"],
-                    oficina=st.session_state["reporte_general_oficina"],
-                    nombre_archivo=st.session_state["reporte_general_nombre_pdf"],
-                    correos_extra=st.session_state["reporte_general_correos_extra"],
-                    fecha_ejec=st.session_state["reporte_general_fecha_ejec"],
-                    lista_destinatarios=st.session_state["reporte_general_dest_oficina"]
-                )
-
-                if correo_enviado:
-                    st.success("Reporte enviado correctamente por correo.")
-                else:
-                    st.warning(
-                        "El PDF está generado, pero no se pudo enviar el correo. "
-                        "Puedes descargarlo y compartirlo manualmente."
-                    )
-
-    st.divider()
-
-    st.markdown(
-        """
-        <div class="footer-text">
-            Sistema Operativo - Grupo Besco | Reporte General
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+            if exito:
+                st.balloons()
+                st.success("✉️ Reporte enviado exitosamente por correo electrónico.")
 
 
 if __name__ == "__main__":
