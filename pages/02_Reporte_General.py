@@ -614,7 +614,7 @@ def enviar_correo(
 
 
 # =========================================================
-# GENERACIÓN DEL PDF
+# GENERACIÓN DEL PDF (CORREGIDA CONTRA KEYERROR)
 # =========================================================
 def generar_pdf(
     cliente,
@@ -671,15 +671,21 @@ def generar_pdf(
 
         for eq in equipos_data:
             pdf.set_font("Arial", "", 9)
-            r, g, b = color_op.get(eq["estatus"], (0, 0, 0))
+            # Extracción segura de datos
+            estatus_eq = eq.get("estatus", "Operando correctamente")
+            esp_eq = eq.get("esp", "Ninguna")
+            tag_eq = eq.get("tag", "-")
+            num_eq = eq.get("numero", 1)
 
-            pdf.cell(10, 6, str(eq["numero"]), 1, 0, "C")
-            pdf.cell(50, 6, limpiar_texto(eq["esp"]), 1, 0, "L")
-            pdf.cell(30, 6, limpiar_texto(eq["tag"] or "-"), 1, 0, "C")
+            r, g, b = color_op.get(estatus_eq, (0, 0, 0))
+
+            pdf.cell(10, 6, str(num_eq), 1, 0, "C")
+            pdf.cell(50, 6, limpiar_texto(esp_eq), 1, 0, "L")
+            pdf.cell(30, 6, limpiar_texto(tag_eq or "-"), 1, 0, "C")
 
             pdf.set_text_color(r, g, b)
             pdf.set_font("Arial", "B", 9)
-            pdf.cell(96, 6, limpiar_texto(eq["estatus"]), 1, 1, "L")
+            pdf.cell(96, 6, limpiar_texto(estatus_eq), 1, 1, "L")
             pdf.set_text_color(0, 0, 0)
 
         pdf.ln(4)
@@ -688,26 +694,37 @@ def generar_pdf(
         if pdf.get_y() > 230:
             pdf.add_page()
 
-        pdf.add_custom_section(f"Equipo {eq['numero']}: {eq['esp']}")
+        # Extracción e inicialización segura para evitar KeyError
+        num_eq = eq.get("numero", 1)
+        esp_eq = eq.get("esp", "Ninguna")
+        estatus_eq = eq.get("estatus", "Operando correctamente")
+        tag_eq = eq.get("tag", "")
+        marca_eq = eq.get("marca", "")
+        cap_eq = eq.get("cap", "")
+        meds_eq = eq.get("meds", {})
+        otros_eq = eq.get("otros", "")
+        actividades_eq = eq.get("actividades", "")
+        comentarios_eq = eq.get("com", "")
+        fotos_fa = eq.get("fa", [])
+        fotos_fd = eq.get("fd", [])
+
+        pdf.add_custom_section(f"Equipo {num_eq}: {esp_eq}")
 
         datos_eq = []
+        if tag_eq:
+            datos_eq.append(("TAG", tag_eq))
+        if marca_eq:
+            datos_eq.append(("Marca", marca_eq))
+        if cap_eq:
+            datos_eq.append(("Capacidad", cap_eq))
 
-        if eq["tag"]:
-            datos_eq.append(("TAG", eq["tag"]))
-
-        if eq["marca"]:
-            datos_eq.append(("Marca", eq["marca"]))
-
-        if eq["cap"]:
-            datos_eq.append(("Capacidad", eq["cap"]))
-
-        r, g, b = color_op.get(eq["estatus"], (0, 0, 0))
+        r, g, b = color_op.get(estatus_eq, (0, 0, 0))
         pdf.set_font("Arial", "B", 10)
         pdf.set_text_color(r, g, b)
         pdf.cell(
             0,
             7,
-            limpiar_texto(f"  Estatus Final: {eq['estatus']}"),
+            limpiar_texto(f"  Estatus Final: {estatus_eq}"),
             0,
             1,
             "L"
@@ -719,28 +736,28 @@ def generar_pdf(
 
         valid_meds = {
             k: v
-            for k, v in eq["meds"].items()
+            for k, v in meds_eq.items()
             if v
         }
 
         if valid_meds:
             pdf.tabla_mediciones(valid_meds)
 
-        if eq["otros"]:
-            pdf.bloque_texto("Detalles / Mediciones", eq["otros"])
+        if otros_eq:
+            pdf.bloque_texto("Detalles / Mediciones", otros_eq)
 
-        if eq["actividades"]:
-            pdf.bloque_texto("Actividades Realizadas", eq["actividades"])
+        if actividades_eq:
+            pdf.bloque_texto("Actividades Realizadas", actividades_eq)
 
-        if eq["com"]:
+        if comentarios_eq:
             pdf.bloque_texto(
                 "Comentarios Extras",
-                eq["com"],
+                comentarios_eq,
                 color_fondo=(255, 252, 240)
             )
 
-        pdf.photo_grid(f"ANTES - Equipo {eq['numero']}", eq["fa"])
-        pdf.photo_grid(f"DESPUES - Equipo {eq['numero']}", eq["fd"])
+        pdf.photo_grid(f"ANTES - Equipo {num_eq}", fotos_fa)
+        pdf.photo_grid(f"DESPUES - Equipo {num_eq}", fotos_fd)
 
         pdf.separador_equipo()
 
@@ -1094,7 +1111,6 @@ def main():
 
             texto_defecto = LEYENDAS_DEFAULT.get(esp, "")
 
-            # CORRECCIÓN AQUÍ: Cambiada la clave dinámica por f"act_{i}"
             actividades = st.text_area(
                 "Actividades Realizadas",
                 value=texto_defecto,
@@ -1149,6 +1165,7 @@ def main():
                     "cap": cap,
                     "fa": fa or [],
                     "fd": fd or [],
+                    "com": com,
                 }
             )
 
