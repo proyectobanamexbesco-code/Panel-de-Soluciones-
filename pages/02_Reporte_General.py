@@ -11,6 +11,9 @@ import io
 import tempfile
 import contextlib
 from pypdf import PdfWriter
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 
 # =========================================================
@@ -230,6 +233,56 @@ def limpiar_nombre_archivo(nombre: str) -> str:
 
 
 # =========================================================
+# CONEXIÓN Y SUBIDA A GOOGLE DRIVE
+# =========================================================
+def subir_a_drive(pdf_bytes: bytes, nombre_archivo: str, folder_id: str = None) -> bool:
+    """
+    Sube un archivo PDF a Google Drive utilizando una Cuenta de Servicio (Service Account).
+    Las credenciales pueden estar en st.secrets["gcp_service_account"] o en el archivo 'service_account.json'.
+    """
+    try:
+        scopes = ['https://www.googleapis.com/auth/drive.file']
+        creds = None
+
+        if "gcp_service_account" in st.secrets:
+            creds = service_account.Credentials.from_service_account_info(
+                st.secrets["gcp_service_account"], scopes=scopes
+            )
+        elif os.path.exists("service_account.json"):
+            creds = service_account.Credentials.from_service_account_file(
+                "service_account.json", scopes=scopes
+            )
+        else:
+            st.error("Error de Drive: No se encontraron las credenciales 'gcp_service_account' en st.secrets ni el archivo 'service_account.json'.")
+            return False
+
+        service = build('drive', 'v3', credentials=creds)
+
+        file_metadata = {'name': nombre_archivo}
+        if folder_id and folder_id.strip():
+            file_metadata['parents'] = [folder_id.strip()]
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            resumable=True
+        )
+
+        archivo = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink'
+        ).execute()
+
+        st.success(f"✅ Archivo respaldado con éxito en Google Drive (ID: {archivo.get('id')})")
+        return True
+
+    except Exception as e:
+        st.error(f"Error al intentar subir el archivo a Google Drive: {str(e)}")
+        return False
+
+
+# =========================================================
 # CLASE PDF
 # =========================================================
 class BESCO_PDF(FPDF):
@@ -329,17 +382,17 @@ class BESCO_PDF(FPDF):
 
     def tabla_info(self, datos):
         self.set_font("Arial", "", 9)
-        self.col_label = 50
-        self.col_valor = self.w - 12 - 12 - self.col_label
+        col_label = 50
+        col_valor = self.w - 12 - 12 - col_label
 
         for etiqueta, valor in datos:
             self.set_font("Arial", "B", 9)
             self.set_fill_color(240, 243, 248)
-            self.cell(self.col_label, 7, limpiar_texto(etiqueta), 1, 0, "L", fill=True)
+            self.cell(col_label, 7, limpiar_texto(etiqueta), 1, 0, "L", fill=True)
 
             self.set_font("Arial", "", 9)
             self.set_fill_color(255, 255, 255)
-            self.cell(self.col_valor, 7, limpiar_texto(str(valor)), 1, 1, "L", fill=True)
+            self.cell(col_valor, 7, limpiar_texto(str(valor)), 1, 1, "L", fill=True)
 
         self.ln(3)
 
@@ -1152,9 +1205,124 @@ def main():
                     "cap": cap,
                     "com": com,
                     "fa": fa,
-                    "fd": fd
+                    "fd": fd,
                 }
             )
+
+    st.markdown(
+        '<div class="section-title">4. Materiales Utilizados</div>',
+        unsafe_allow_html=True
+    )
+
+    df_mat = st.data_editor(
+        pd.DataFrame({"Cantidad": [""], "Descripción": [""]}),
+        num_rows="dynamic",
+        use_container_width=True,
+        key="tabla_materiales"
+    )
+
+    st.markdown(
+        '<div class="section-title">5. Generación, Envío y Respaldo en Drive</div>',
+        unsafe_allow_html=True
+    )
+
+    if st.button("⚡ Generar Reporte PDF", use_container_width=True, type="primary"):
+        if not cliente or not folio:
+            st.error("Por favor, ingresa al menos el Cliente y el Folio/TK antes de generar el reporte.")
+        else:
+            with st.spinner("Generando documento PDF y procesando imágenes..."):
+                pdf_bytes, f_ejec_str = generar_pdf(
+                    cliente,
+                    folio,
+                    fecha_ejecucion,
+                    oficina,
+                    sucursal,
+                    tecnico,
+                    supervisor,
+                    tipo_serv,
+                    referencia,
+                    equipos_data,
+                    df_mat,
+                    archivos_folio
+                )
+
+                nombre_limpio_cliente = limpiar_nombre_archivo(cliente)
+                nombre_limpio_folio = limpiar_nombre_archivo(folio)
+                nombre_archivo = f"Reporte_{nombre_limpio_cliente}_{nombre_limpio_folio}.pdf"
+
+                st.session_state["pdf_bytes"] = pdf_bytes
+                st.session_state["nombre_archivo"] = nombre_archivo
+                st.session_state["f_ejec_str"] = f_ejec_str
+                st.session_state["cliente"] = cliente
+                st.session_state["folio"] = folio
+                st.session_state["sucursal"] = sucursal
+                st.session_state["oficina"] = oficina
+
+            st.success("✅ Reporte generado correctamente. Ahora puedes descargarlo, enviarlo por correo o subirlo a Google Drive.")
+
+    if "pdf_bytes" in st.session_state:
+        st.download_button(
+            label="⬇️ Descargar PDF",
+            data=st.session_state["pdf_bytes"],
+            file_name=st.session_state["nombre_archivo"],
+            mime="application/pdf",
+            use_container_width=True
+        )
+
+        st.markdown("---")
+        st.subheader("📤 Envío por Correo Electrónico")
+
+        destinatarios_oficina = MAPEO_CORREOS.get(st.session_state["oficina"], [])
+        st.caption(f"Destinatarios predeterminados ({st.session_state['oficina']}): {', '.join(destinatarios_oficina)}")
+
+        correos_extra = st.text_input(
+            "Correos adicionales (separados por coma)",
+            placeholder="ejemplo1@empresa.com, ejemplo2@empresa.com"
+        )
+
+        if st.button("✉️ Enviar Reporte por Correo", use_container_width=True):
+            with st.spinner("Enviando correo electrónico..."):
+                exito = enviar_correo(
+                    st.session_state["pdf_bytes"],
+                    st.session_state["cliente"],
+                    st.session_state["folio"],
+                    st.session_state["sucursal"],
+                    st.session_state["oficina"],
+                    st.session_state["nombre_archivo"],
+                    correos_extra,
+                    st.session_state["f_ejec_str"],
+                    destinatarios_oficina
+                )
+                if exito:
+                    st.success("✅ Correo enviado satisfactoriamente.")
+
+        st.markdown("---")
+        st.subheader("☁️ Respaldo en Google Drive")
+        st.caption("Guarda una copia automática de este reporte en una carpeta específica de Google Drive.")
+
+        folder_id = st.text_input(
+            "ID de la carpeta de Google Drive (Opcional)",
+            value=st.secrets.get("DRIVE_FOLDER_ID", ""),
+            help="Pega aquí el ID de la carpeta de Drive (la cadena al final de la URL de la carpeta). Si se deja en blanco, se subirá al directorio raíz de la cuenta de servicio."
+        )
+
+        if st.button("🚀 Subir a Google Drive", use_container_width=True):
+            with st.spinner("Subiendo archivo a Google Drive..."):
+                subir_a_drive(
+                    st.session_state["pdf_bytes"],
+                    st.session_state["nombre_archivo"],
+                    folder_id
+                )
+
+    st.markdown(
+        """
+        <div class="footer-text">
+            Sistema de Evidencia Técnica BESCO © 2026<br>
+            Optimizado para captura en campo
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 if __name__ == "__main__":
