@@ -3,21 +3,14 @@ import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
 from PIL import Image
+import os
 import sys
 import smtplib
 from email.message import EmailMessage
+import io
 import tempfile
 import contextlib
 from pypdf import PdfWriter
-import streamlit as st
-import pandas as pd
-from fpdf import FPDF
-from datetime import datetime
-import os
-import io
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 
 
 # =========================================================
@@ -1340,95 +1333,6 @@ def main():
         unsafe_allow_html=True
     )
 
-if __name__ == "__main__":
-    main()
-# =========================================================
-# CONFIGURACIÓN GENERAL
-# =========================================================
-PAGE_TITLE = "BESCO | Reporte General"
-PAGE_ICON = "📑"
-st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="centered")
-
-# =========================================================
-# FUNCIÓN SUBIDA AUTOMÁTICA (INTEGRADA)
-# =========================================================
-def subir_a_drive_automatico(pdf_bytes, nombre_archivo):
-    try:
-        if "gcp_service_account" not in st.secrets:
-            return False, "Error: Credenciales no encontradas en secrets."
-            
-        folder_id = st.secrets.get("DRIVE_FOLDER_ID")
-        creds = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"], 
-            scopes=['https://www.googleapis.com/auth/drive.file']
-        )
-        service = build('drive', 'v3', credentials=creds)
-        
-        file_metadata = {'name': nombre_archivo}
-        if folder_id:
-            file_metadata['parents'] = [folder_id]
-        
-        media = MediaIoBaseUpload(io.BytesIO(pdf_bytes), mimetype='application/pdf', resumable=True)
-        
-        service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id',
-            supportsAllDrives=True
-        ).execute()
-        return True, "Subido con éxito"
-    except Exception as e:
-        return False, str(e)
-
-# =========================================================
-# LÓGICA DE REPORTE GENERAL
-# =========================================================
-def generar_reporte_general(data):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "REPORTE GENERAL BESCO", 0, 1, "C")
-    pdf.set_font("Arial", "", 12)
-    pdf.ln(10)
-    
-    # Datos del formulario
-    for key, value in data.items():
-        pdf.cell(0, 10, f"{key}: {value}", 0, 1)
-    
-    return pdf.output(dest="S").encode("latin-1", "replace")
-
-# =========================================================
-# INTERFAZ PRINCIPAL
-# =========================================================
-def main():
-    st.title("📑 Reporte General BESCO")
-    
-    with st.form("form_reporte"):
-        cliente = st.text_input("Cliente")
-        folio = st.text_input("Folio")
-        observaciones = st.text_area("Observaciones")
-        submitted = st.form_submit_button("Generar y Subir")
-
-    if submitted:
-        if not cliente or not folio:
-            st.error("Cliente y Folio son obligatorios.")
-            return
-
-        data = {"Cliente": cliente, "Folio": folio, "Observaciones": observaciones}
-        
-        with st.spinner("Generando PDF y subiendo a Drive..."):
-            # 1. Generar PDF
-            pdf_bytes = generar_reporte_general(data)
-            nombre_archivo = f"Reporte_{cliente}_{folio}.pdf"
-            
-            # 2. Carga automática integrada
-            exito, mensaje = subir_a_drive_automatico(pdf_bytes, nombre_archivo)
-            
-            if exito:
-                st.success("✅ Reporte generado y subido automáticamente a Drive.")
-                st.download_button("Descargar localmente", pdf_bytes, nombre_archivo)
-            else:
-                st.error(f"Error en carga automática: {mensaje}")
 
 if __name__ == "__main__":
     main()
