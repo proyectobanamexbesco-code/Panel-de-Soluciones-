@@ -860,7 +860,7 @@ MAPEO_CORREOS = {
         "monica.iniestra@besco.mx",
     ],
     "Pachuca": [
-        "german.constantino@besco.mx",
+        "zaida.dominguez@besco.mx",
     ],
     "Michoacán": [
         "cristobal.rodriguez@besco.mx",
@@ -868,9 +868,9 @@ MAPEO_CORREOS = {
         "javier.zamano@besco.mx",
     ],
     "Zonas/ CDMX": [
-        "german.constantino@besco.mx",
+        "gerardo.mendez@besco.mx",
+        "rene.munoz@besco.mx",
         "andres.mayagoitia@besco.mx",
-        "brenda.cervantes@besco.mx",
     ],
     "CDMX": [
         "gerardo.mendez@besco.mx",
