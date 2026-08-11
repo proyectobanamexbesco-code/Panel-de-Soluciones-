@@ -902,7 +902,7 @@ MAPEO_CORREOS = {
     ],    
     "Telmex": [
         "juan.perez@besco.mx",
-        "dario.perez@besco.mx",
+        "dario.vargas@besco.mx",
         "gerardo.mendez@besco.mx"
     ],
 }
