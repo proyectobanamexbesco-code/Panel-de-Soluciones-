@@ -12,3 +12,4 @@ requests
 Office365-REST-Python-Client
 google-api-python-client
 google-auth
+requirements.txt
