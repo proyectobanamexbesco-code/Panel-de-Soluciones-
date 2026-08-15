@@ -13,6 +13,7 @@ OPCIONES_ESTATUS = [
     "Incapacidad",
     "Vacaciones",
     "Día de descanso"
+    "Baja"
 ]
 
 # --- CONEXIÓN CON GSPREAD ---
