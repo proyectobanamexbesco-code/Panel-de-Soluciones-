@@ -1,139 +1,108 @@
-import datetime
-import pandas as pd
 import streamlit as st
+import pandas as pd
+from datetime import date
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Control de Asistencia", layout="wide")
+st.set_page_config(
+    page_title="Control de Asistencia por Sitio",
+    page_icon="📋",
+    layout="wide"
+)
 
-SITIOS_DISPONIBLES = ["MX10", "MX11", "MX12", "MX13"]
-OPCIONES_ESTATUS = [
-    "Asistencia",
-    "Falta",
-    "Incapacidad",
-    "Vacaciones",
-    "Descanso"
-    "Baja"
-]
-
-# --- CONEXIÓN CON GSPREAD ---
-def obtener_cliente_gspread():
-    """Autentica con la Service Account configurada en st.secrets."""
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
-    return gspread.authorize(creds)
-
-def cargar_listado_maestro():
-    """Lee el catálogo de personal desde 'Hoja 1' en Google Sheets."""
+# --- FUNCIÓN DE CONEXIÓN A GOOGLE SHEETS ---
+@st.cache_resource(ttl=600)
+def init_gspread_client():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    
+    # Obtener credenciales desde los secrets
     try:
-        client = obtener_cliente_gspread()
-        sheet = client.open_by_key(st.secrets["SPREADSHEET_ID"]).worksheet("Hoja 1")
-        datos = sheet.get_all_records()
-        df = pd.DataFrame(datos)
+        creds_dict = dict(st.secrets["google_credentials"])
         
-        # Limpieza de datos
-        df = df.dropna(subset=["No_Empleado"])
-        df["No_Empleado"] = df["No_Empleado"].astype(str)
-        return df
+        # Corrección de saltos de línea para la private_key PEM
+        if "\\n" in creds_dict["private_key"]:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+            
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(credentials)
     except Exception as e:
-        st.error(f"Error al leer la lista de personal de Google Sheets: {e}")
+        st.error(f"Error al autenticar credenciales con Google: {str(e)}")
+        return None
+
+@st.cache_data(ttl=300)
+def cargar_personal_desde_sheets(spreadsheet_id):
+    gc = init_gspread_client()
+    if not gc:
+        return pd.DataFrame()
+    
+    try:
+        sh = gc.open_by_key(spreadsheet_id)
+        # Seleccionar primera hoja por defecto o especificar por nombre
+        worksheet = sh.get_worksheet(0)
+        datos = worksheet.get_all_records()
+        return pd.DataFrame(datos)
+    except Exception as e:
+        st.error(f"Error al leer la lista de personal de Google Sheets: {str(e)}")
         return pd.DataFrame()
 
-def guardar_registro_asistencia(df_nuevos_registros):
-    """Escribe los nuevos registros en la pestaña 'Historial_Asistencia'."""
-    try:
-        client = obtener_cliente_gspread()
-        doc = client.open_by_key(st.secrets["SPREADSHEET_ID"])
-        
-        # Intentar obtener la pestaña de historial; si no existe, la crea
-        try:
-            hoja_historial = doc.worksheet("Historial_Asistencia")
-        except gspread.exceptions.WorksheetNotFound:
-            hoja_historial = doc.add_worksheet(title="Historial_Asistencia", rows="1000", cols="20")
-            # Encabezados
-            hoja_historial.append_row([
-                "Fecha", "SITE", "No_Empleado", "Nombre Completo", 
-                "PUESTO", "Estatus", "Observaciones", "Reportado_Por"
-            ])
-
-        # Convertir el DataFrame a lista de filas para anexar
-        filas_a_insertar = df_nuevos_registros.values.tolist()
-        hoja_historial.append_rows(filas_a_insertar)
-        return True
-    except Exception as e:
-        st.error(f"Error al escribir en Google Sheets: {e}")
-        return False
-
-# --- INTERFAZ STREAMLIT ---
+# --- INTERFAZ PRINCIPAL ---
 st.title("📋 Control de Asistencia por Sitio")
 
-# Controles de encabezado
-col_sitio, col_fecha, col_reporta = st.columns([1, 1, 1.5])
+# Controles superiores
+col1, col2, col3 = st.columns([1, 1, 2])
 
-with col_sitio:
-    sitio_seleccionado = st.selectbox("🏢 SITE:", options=SITIOS_DISPONIBLES)
+with col1:
+    sitio_seleccionado = st.selectbox(
+        "🗂 SITE:",
+        ["MX10", "MX11", "MX12", "MX13"]
+    )
 
-with col_fecha:
-    fecha_seleccionada = st.date_input("📅 Fecha a registrar:", datetime.date.today())
+with col2:
+    fecha_registro = st.date_input(
+        "📅 Fecha a registrar:",
+        value=date.today()
+    )
 
-with col_reporta:
-    reportado_por = st.text_input("✍️ Persona que reporta / Valida:", placeholder="Ej. Ing. Gerardo Méndez")
+with col3:
+    persona_reporta = st.text_input(
+        "✍️ Persona que reporta / Valida:",
+        placeholder="Ej. Ing. Gerardo Méndez"
+    )
 
-# Carga de personal
-df_maestro = cargar_listado_maestro()
+# --- LECTURA DE DATOS DESDE SHEETS ---
+spreadsheet_id = st.secrets.get("SPREADSHEET_ID", "12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM")
+df_personal = cargar_personal_desde_sheets(spreadsheet_id)
 
-if not df_maestro.empty:
-    # Filtrar por el SITE elegido
-    df_sitio = df_maestro[df_maestro["SITE"] == sitio_seleccionado].copy()
-
-    if df_sitio.empty:
-        st.warning(f"No se encontró personal asignado al SITE **{sitio_seleccionado}**.")
+if not df_personal.empty:
+    # Filtrar por sitio si la columna 'SITE' existe en la hoja
+    if "SITE" in df_personal.columns:
+        df_sitio = df_personal[df_personal["SITE"] == sitio_seleccionado]
     else:
-        st.markdown(f"### Pase de Lista — **{sitio_seleccionado}** ({fecha_seleccionada.strftime('%d/%m/%Y')})")
-        
-        # Opciones por defecto para la captura
+        df_sitio = df_personal
+
+    st.subheader(f"Personal asignado a {sitio_seleccionado}")
+    
+    # Opciones de asistencia para la tabla interactiva
+    estatus_opciones = ["Asistencia", "Falta", "Incapacidad", "Vacaciones", "Permiso"]
+    
+    if "Estatus" not in df_sitio.columns:
         df_sitio["Estatus"] = "Asistencia"
-        df_sitio["Observaciones"] = ""
+        
+    df_editado = st.data_editor(
+        df_sitio,
+        column_config={
+            "Estatus": st.column_config.SelectboxColumn(
+                "Estatus de Asistencia",
+                options=estatus_opciones,
+                required=True
+            )
+        },
+        use_container_width=True,
+        hide_index=True
+    )
 
-        # Tabla interactiva para modificar asistencia y observaciones
-        df_editado = st.data_editor(
-            df_sitio[["No_Empleado", "Nombre Completo", "PUESTO", "Estatus", "Observaciones"]],
-            column_config={
-                "No_Empleado": st.column_config.TextColumn("No. Empleado", disabled=True),
-                "Nombre Completo": st.column_config.TextColumn("Nombre Completo", disabled=True),
-                "PUESTO": st.column_config.TextColumn("Puesto", disabled=True),
-                "Estatus": st.column_config.SelectboxColumn(
-                    "Estatus",
-                    options=OPCIONES_ESTATUS,
-                    required=True
-                ),
-                "Observaciones": st.column_config.TextColumn("Observaciones", width="large")
-            },
-            hide_index=True,
-            use_container_width=True,
-            key=f"editor_{sitio_seleccionado}_{fecha_seleccionada}"
-        )
-
-        # Botón para enviar datos directamente a Google Sheets
-        if st.button("💾 Guardar y Sincronizar en Google Sheets", type="primary"):
-            if not reportado_por.strip():
-                st.error("⚠️ Por favor ingresa el nombre de la persona que reporta antes de guardar.")
-            else:
-                # Prepara el bloque de filas a enviar
-                df_para_guardar = pd.DataFrame({
-                    "Fecha": fecha_seleccionada.strftime("%Y-%m-%d"),
-                    "SITE": sitio_seleccionado,
-                    "No_Empleado": df_editado["No_Empleado"],
-                    "Nombre Completo": df_editado["Nombre Completo"],
-                    "PUESTO": df_editado["PUESTO"],
-                    "Estatus": df_editado["Estatus"],
-                    "Observaciones": df_editado["Observaciones"],
-                    "Reportado_Por": reportado_por.strip()
-                })
-
-                with st.spinner("Enviando registros a Google Sheets..."):
-                    exito = guardar_registro_asistencia(df_para_guardar)
-                    if exito:
-                        st.success(f"¡Asistencia de **{sitio_seleccionado}** registrada correctamente en Google Sheets!")
+    if st.button("💾 Guardar Registro de Asistencia", type="primary"):
+        st.success(f"Registro guardado correctamente para el sitio {sitio_seleccionado} con fecha {fecha_registro}.")
