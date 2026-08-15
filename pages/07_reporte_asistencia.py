@@ -12,7 +12,7 @@ OPCIONES_ESTATUS = [
     "Falta",
     "Incapacidad",
     "Vacaciones",
-    "Día de descanso"
+    "Descanso"
     "Baja"
 ]
 
