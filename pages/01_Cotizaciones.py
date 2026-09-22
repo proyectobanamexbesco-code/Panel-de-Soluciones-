@@ -194,9 +194,6 @@ def sanitize_filename(texto):
 def calcular_precio_venta(precio_unitario, utilidad_porcentaje):
     return round(float(precio_unitario) * (1 + (float(utilidad_porcentaje) / 100)), 2)
 
-def calcular_utilidad_monto(precio_unitario, utilidad_porcentaje):
-    return round(float(precio_unitario) * (float(utilidad_porcentaje) / 100), 2)
-
 def calcular_totales(conceptos):
     if not conceptos:
         return 0.0, 0.0, 0.0
@@ -330,7 +327,7 @@ def detectar_columnas_region(df):
                     columnas_region.append(col)
     return list(dict.fromkeys(columnas_region))
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=60)
 def obtener_preciario_besco():
     spreadsheet = abrir_spreadsheet_preciario()
     worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
@@ -338,11 +335,13 @@ def obtener_preciario_besco():
         try:
             ws = spreadsheet.worksheet(worksheet_name)
         except Exception:
-            raise RuntimeError(
-                f"No se encontró la pestaña '{worksheet_name}' en el Preciario BESCO. Deja PRECIARIO_BESCO_WORKSHEET vacío o captura el nombre exacto de la pestaña."
-            )
+            try:
+                ws = spreadsheet.get_worksheet(0)
+            except Exception as e:
+                raise RuntimeError(f"No se pudo acceder a la hoja de cálculo ni a la pestaña '{worksheet_name}': {e}")
     else:
         ws = spreadsheet.get_worksheet(0)
+        
     records = ws.get_all_records()
     if not records:
         return pd.DataFrame()
@@ -415,7 +414,7 @@ def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, tot
         ws.append_row([folio, fecha_texto, cliente, empresa, nombre_cot, round(float(total), 2), cotizador, empresa_emisora])
         st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en 'Historial Cotizaciones Besco'."
     except Exception as e:
-        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}. Verifica permisos del archivo y el nombre del documento compartido con el bot."
+        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}."
 
 # ==========================================
 # GENERACIÓN DE PDF (FPDF)
@@ -599,7 +598,6 @@ def render_seccion_identificacion():
     st.markdown("## 1. Identificación del cliente y persona que cotiza")
     datos = st.session_state.datos_cotizacion
     with st.container(border=True):
-        # Selector de Empresa Cotizadora
         st.markdown("### 🏢 Empresa Cotizadora Emisora")
         empresa_actual = datos.get("empresa_cotizadora", list(EMPRESAS_EMISORAS.keys())[0])
         idx_empresa = list(EMPRESAS_EMISORAS.keys()).index(empresa_actual) if empresa_actual in EMPRESAS_EMISORAS else 0
@@ -849,7 +847,7 @@ def render_selector_preciario():
                                     help="Puedes ajustar manualmente el precio base antes de agregar el concepto.",
                                 )
                 except Exception as e:
-                    st.error(f"Error al cargar el Preciario BESCO: {e}")
+                    st.error(f"❌ Error al cargar el Preciario BESCO: {e}")
                     st.info("Se habilitará automáticamente el modo de captura manual.")
                     usar_preciario_besco = False
                     origen_concepto = "Captura manual"
