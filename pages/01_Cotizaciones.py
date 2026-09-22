@@ -331,14 +331,16 @@ def detectar_columnas_region(df):
 def obtener_preciario_besco():
     spreadsheet = abrir_spreadsheet_preciario()
     worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
+    
     if worksheet_name:
         try:
             ws = spreadsheet.worksheet(worksheet_name)
-        except Exception:
-            try:
-                ws = spreadsheet.get_worksheet(0)
-            except Exception as e:
-                raise RuntimeError(f"No se pudo acceder a la hoja de cálculo ni a la pestaña '{worksheet_name}': {e}")
+        except Exception as ex_tab:
+            nombres_pestanas = [p.title for p in spreadsheet.worksheets()]
+            raise RuntimeError(
+                f"No se encontró la pestaña exacta '{worksheet_name}'. "
+                f"Pestañas disponibles en tu Google Sheet: {nombres_pestanas}. Error original: {ex_tab}"
+            )
     else:
         ws = spreadsheet.get_worksheet(0)
         
