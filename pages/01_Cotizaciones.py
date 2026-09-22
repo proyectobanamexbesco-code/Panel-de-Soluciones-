@@ -32,10 +32,11 @@ EMPRESAS_EMISORAS = {
 
 MANUAL_TIPOS_SERVICIO = [
     "Aire Acondicionado", "Servicio", "Producto", "Instalación",
-    "Mantenimiento", "Obra Civil", "Otro"
+    "Mantenimiento", "Preventivo", "Correctivo", "Obra Civil", "Otro"
 ]
 MANUAL_UNIDADES = [
-    "PZA", "SERVICIO", "LOTE", "M2", "M3", "HORA", "DÍA", "MES", "KG", "OTRA"
+    "PZA", "SERVICIO", "LOTE", "METRO", "METRO LINEAL", "M2", "M3", 
+    "HORA", "DÍA", "MES", "KG", "OTRA"
 ]
 
 TABLE_COLS = {
