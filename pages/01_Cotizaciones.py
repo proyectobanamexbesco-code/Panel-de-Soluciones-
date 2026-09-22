@@ -282,14 +282,8 @@ def obtener_cliente_gspread():
 
 def abrir_spreadsheet_preciario():
     gc = obtener_cliente_gspread()
-    preciario_url = str(st.secrets.get("PRECIARIO_BESCO_URL", "")).strip()
-    preciario_key = str(st.secrets.get("PRECIARIO_BESCO_KEY", "")).strip()
-    preciario_title = str(st.secrets.get("PRECIARIO_BESCO_TITLE", "Preciario Besco")).strip()
-    if preciario_url:
-        return gc.open_by_url(preciario_url)
-    if preciario_key:
-        return gc.open_by_key(preciario_key)
-    return gc.open(preciario_title)
+    preciario_key = str(st.secrets.get("PRECIARIO_BESCO_KEY", "12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM")).strip()
+    return gc.open_by_key(preciario_key)
 
 def detectar_columnas_base(df):
     columnas = [str(c).strip() for c in df.columns]
@@ -330,16 +324,10 @@ def detectar_columnas_region(df):
 @st.cache_data(show_spinner=False, ttl=60)
 def obtener_preciario_besco():
     spreadsheet = abrir_spreadsheet_preciario()
-    worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
-    if worksheet_name:
-        try:
-            ws = spreadsheet.worksheet(worksheet_name)
-        except Exception:
-            try:
-                ws = spreadsheet.get_worksheet(0)
-            except Exception as e:
-                raise RuntimeError(f"No se pudo acceder a la hoja de cálculo ni a la pestaña '{worksheet_name}': {e}")
-    else:
+    worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex")).strip()
+    try:
+        ws = spreadsheet.worksheet(worksheet_name)
+    except Exception:
         ws = spreadsheet.get_worksheet(0)
         
     records = ws.get_all_records()
@@ -376,14 +364,8 @@ def obtener_preciario_besco():
 
 def abrir_spreadsheet_historial():
     gc = obtener_cliente_gspread()
-    historial_url = str(st.secrets.get("HISTORIAL_COTIZACIONES_URL", "")).strip()
-    historial_key = str(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "")).strip()
-    historial_title = str(st.secrets.get("HISTORIAL_COTIZACIONES_TITLE", "Historial Cotizaciones Besco")).strip()
-    if historial_url:
-        return gc.open_by_url(historial_url)
-    if historial_key:
-        return gc.open_by_key(historial_key)
-    return gc.open(historial_title)
+    historial_key = str(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "1fgHczjNYfNxxBNEnPI7YRYTZlyru8BeZOKPy317lzew")).strip()
+    return gc.open_by_key(historial_key)
 
 def obtener_worksheet_historial():
     spreadsheet = abrir_spreadsheet_historial()
@@ -1092,9 +1074,6 @@ def render_seccion_generacion(subtotal, iva, total):
             del st.session_state["pdf_filename"]
         st.rerun()
 
-# ==========================================
-# FLUJO PRINCIPAL DE LA APLICACIÓN
-# ==========================================
 def main():
     init_session_state()
     st.title("💰 Sistema de Cotizaciones | Grupo BESCO")
