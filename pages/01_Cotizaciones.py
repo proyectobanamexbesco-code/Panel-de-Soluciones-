@@ -25,6 +25,19 @@ DEFAULT_CANTIDAD = 1.0
 DEFAULT_PRECIO = 0.0
 BORRADOR_FOLIO_KEY = "__BORRADOR__"
 
+EMPRESAS_EMISORAS = {
+    "Grupo Besco, S.A. de C.V.": {
+        "nombre_corto": "GRUPO BESCO",
+        "rfc": "GBE101207523",
+        "direccion": "JOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65"
+    },
+    "Besco ASM, S.A. de C.V.": {
+        "nombre_corto": "BESCO ASM",
+        "rfc": "BAS210714RV4",
+        "direccion": "JOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65"
+    }
+}
+
 MANUAL_TIPOS_SERVICIO = [
     "Aire Acondicionado", "Servicio", "Producto", "Instalación",
     "Mantenimiento", "Obra Civil", "Otro"
@@ -99,6 +112,7 @@ def get_default_datos_cotizacion():
     return {
         "folio": "",
         "fecha": date.today(),
+        "empresa_cotizadora": list(EMPRESAS_EMISORAS.keys())[0],
         "cliente_nombre": "",
         "cliente_empresa": "",
         "cliente_contacto": "",
@@ -122,7 +136,6 @@ def init_session_state():
     st.session_state.setdefault("selector_plantilla_condiciones", "Base Besco")
     st.session_state.setdefault("mensaje_exito", "")
     st.session_state.setdefault("mensaje_error", "")
-    # Estado para listas de insumos APU
     st.session_state.setdefault("apu_materiales", [])
     st.session_state.setdefault("apu_mano_obra", [])
     st.session_state.setdefault("apu_equipos", [])
@@ -380,7 +393,7 @@ def obtener_worksheet_historial():
         ws = spreadsheet.worksheet(worksheet_name)
     except Exception:
         ws = spreadsheet.add_worksheet(title=worksheet_name, rows="100", cols="10")
-        ws.append_row(["FOLIO", "FECHA", "CLIENTE", "EMPRESA / INMUEBLE", "NOMBRE COTIZACION", "TOTAL PRESUPUESTADO", "COTIZADOR"])
+        ws.append_row(["FOLIO", "FECHA", "CLIENTE", "EMPRESA / INMUEBLE", "NOMBRE COTIZACION", "TOTAL PRESUPUESTADO", "COTIZADOR", "EMPRESA EMISORA"])
     return ws
 
 def folio_ya_registrado(ws, folio):
@@ -393,13 +406,13 @@ def folio_ya_registrado(ws, folio):
     except Exception:
         return False
 
-def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, total, cotizador):
+def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, total, cotizador, empresa_emisora):
     try:
         ws = obtener_worksheet_historial()
         if folio_ya_registrado(ws, folio):
             st.session_state.mensaje_exito = f"ℹ️ La cotización con folio '{folio}' ya estaba registrada en el historial."
             return
-        ws.append_row([folio, fecha_texto, cliente, empresa, nombre_cot, round(float(total), 2), cotizador])
+        ws.append_row([folio, fecha_texto, cliente, empresa, nombre_cot, round(float(total), 2), cotizador, empresa_emisora])
         st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en 'Historial Cotizaciones Besco'."
     except Exception as e:
         st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}. Verifica permisos del archivo y el nombre del documento compartido con el bot."
@@ -408,9 +421,10 @@ def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, tot
 # GENERACIÓN DE PDF (FPDF)
 # ==========================================
 class PDFCotizacion(FPDF):
-    def __init__(self, condiciones):
+    def __init__(self, condiciones, empresa_emisora_nombre):
         super().__init__("P", "mm", "Letter")
         self.condiciones = condiciones
+        self.empresa_emisora_nombre = empresa_emisora_nombre
 
     def header(self):
         logo_paths = ["logo besco 2026.jpeg", "logo_besco_2026.jpeg", "logo_besco.jpeg", "logo.jpeg"]
@@ -424,11 +438,12 @@ class PDFCotizacion(FPDF):
         self.set_font("Arial", "", 8)
         self.set_text_color(0, 0, 0)
         self.set_xy(120, 10)
+        
+        datos_empresa = EMPRESAS_EMISORAS.get(self.empresa_emisora_nombre, EMPRESAS_EMISORAS["Grupo Besco, S.A. de C.V."])
         empresa_info = (
-            "Grupo Besco SA de CV\n"
-            "JOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\n"
-            "Tel. 01 55 55 15 08 65\n"
-            "RFC. GBE101207523"
+            f"{self.empresa_emisora_nombre}\n"
+            f"{datos_empresa['direccion']}\n"
+            f"RFC. {datos_empresa['rfc']}"
         )
         self.multi_cell(80, 4, limpiar_texto_pdf(empresa_info), 0, "R")
         self.ln(10)
@@ -507,7 +522,8 @@ def draw_table_row(pdf, concepto):
     pdf.set_y(y + row_height)
 
 def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
-    pdf = PDFCotizacion(condiciones)
+    empresa_emisora = datos.get("empresa_cotizadora", list(EMPRESAS_EMISORAS.keys())[0])
+    pdf = PDFCotizacion(condiciones, empresa_emisora)
     pdf.set_auto_page_break(auto=False)
     pdf.add_page()
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
@@ -540,7 +556,7 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     pdf.cell(80, 5, limpiar_texto_pdf(datos["cliente_contacto"].upper()), 0, 1, "L")
     pdf.ln(6)
     pdf.set_font("Arial", "", 9)
-    pdf.multi_cell(0, 5, limpiar_texto_pdf("Por medio de la presente y a nombre de Grupo Besco SA de CV, presento la siguiente cotizacion:"), 0, "L")
+    pdf.multi_cell(0, 5, limpiar_texto_pdf(f"Por medio de la presente y a nombre de {empresa_emisora}, presento la siguiente cotizacion:"), 0, "L")
     pdf.ln(2)
     if nombre_cot:
         pdf.set_font("Arial", "BI", 11)
@@ -573,7 +589,7 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     pdf.cell(0, 5, limpiar_texto_pdf(datos["cotiza_nombre"].strip().upper()), 0, 1, "C")
     pdf.cell(0, 5, limpiar_texto_pdf(datos["cotiza_puesto"].strip().upper()), 0, 1, "C")
     pdf.set_font("Arial", "B", 9)
-    pdf.cell(0, 5, limpiar_texto_pdf("GRUPO BESCO"), 0, 1, "C")
+    pdf.cell(0, 5, limpiar_texto_pdf(EMPRESAS_EMISORAS[empresa_emisora]["nombre_corto"]), 0, 1, "C")
     return pdf.output(dest="S").encode("latin-1")
 
 # ==========================================
@@ -583,6 +599,20 @@ def render_seccion_identificacion():
     st.markdown("## 1. Identificación del cliente y persona que cotiza")
     datos = st.session_state.datos_cotizacion
     with st.container(border=True):
+        # Selector de Empresa Cotizadora
+        st.markdown("### 🏢 Empresa Cotizadora Emisora")
+        empresa_actual = datos.get("empresa_cotizadora", list(EMPRESAS_EMISORAS.keys())[0])
+        idx_empresa = list(EMPRESAS_EMISORAS.keys()).index(empresa_actual) if empresa_actual in EMPRESAS_EMISORAS else 0
+        
+        empresa_cotizadora = st.selectbox(
+            "Seleccione la empresa emisora de la cotización",
+            options=list(EMPRESAS_EMISORAS.keys()),
+            index=idx_empresa
+        )
+        rfc_actual = EMPRESAS_EMISORAS[empresa_cotizadora]["rfc"]
+        st.caption(f"**RFC Asignado:** {rfc_actual}")
+
+        st.markdown("---")
         col_g1, col_g2, col_g3 = st.columns(3)
         with col_g1:
             folio = st.text_input("Folio / OT / TK", value=datos["folio"], placeholder="Ej. COT-001", max_chars=40)
@@ -615,6 +645,7 @@ def render_seccion_identificacion():
         with col_p4:
             cotiza_correo = st.text_input("Correo de quien cotiza", value=datos["cotiza_correo"])
         st.session_state.datos_cotizacion.update({
+            "empresa_cotizadora": empresa_cotizadora,
             "folio": folio.strip(), "fecha": fecha,
             "cliente_nombre": cliente_nombre.strip(), "cliente_empresa": cliente_empresa.strip(),
             "cliente_contacto": cliente_contacto.strip(), "cliente_telefono": cliente_telefono.strip(),
@@ -623,13 +654,10 @@ def render_seccion_identificacion():
             "cotiza_correo": cotiza_correo.strip(), "nombre_cotizacion": nombre_cotizacion.strip(),
         })
 
-
 def render_modulo_apu():
-    """Módulo secundario para calcular PU basándose en Análisis de Precios Unitarios"""
     st.markdown("### 🛠️ Análisis de Precios Unitarios (APU)")
     st.caption("Desglosa los costos directos para determinar automáticamente el Precio Unitario Final del concepto.")
 
-    # 1. Materiales
     st.markdown("##### 1. Materiales e Insumos")
     col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns([2, 1, 1, 1, 1])
     with col_m1:
@@ -658,7 +686,6 @@ def render_modulo_apu():
             st.session_state.apu_materiales = []
             st.rerun()
 
-    # 2. Mano de Obra
     st.markdown("##### 2. Mano de Obra")
     col_mo1, col_mo2, col_mo3, col_mo4, col_mo5 = st.columns([2, 1, 1, 1, 1])
     with col_mo1:
@@ -687,7 +714,6 @@ def render_modulo_apu():
             st.session_state.apu_mano_obra = []
             st.rerun()
 
-    # 3. Herramienta y Equipo / Otros
     st.markdown("##### 3. Equipo, Herramienta y Otros Costos Directos")
     col_eq1, col_eq2, col_eq3, col_eq4, col_eq5 = st.columns([2, 1, 1, 1, 1])
     with col_eq1:
@@ -716,11 +742,9 @@ def render_modulo_apu():
             st.session_state.apu_equipos = []
             st.rerun()
 
-    # Cálculo de Totales Directos e Indirectos
     costo_materiales = sum(item["Importe"] for item in st.session_state.apu_materiales)
     costo_mo = sum(item["Importe"] for item in st.session_state.apu_mano_obra)
     costo_equipo = sum(item["Importe"] for item in st.session_state.apu_equipos)
-
     costo_directo_total = costo_materiales + costo_mo + costo_equipo
 
     st.markdown("---")
@@ -743,13 +767,10 @@ def render_modulo_apu():
     - **Utilidad ({pct_utilidad_apu}%):** ${monto_utilidad_apu:,.2f}
     - **PRECIO UNITARIO FINAL:** **${precio_unitario_calculado:,.2f}**
     """)
-
     return precio_unitario_calculado
-
 
 def render_selector_preciario():
     st.markdown("## 2. Captura de Conceptos")
-
     modalidad_cotizacion = st.radio(
         "Selecciona la Modalidad de Cotización para agregar conceptos:",
         ["Cotización Directa (Preciario / Manual)", "Cotización con Análisis de Precios Unitarios (APU)"],
@@ -890,7 +911,6 @@ def render_selector_preciario():
                     st.rerun()
 
     else:
-        # Modalidad APU
         with st.container(border=True):
             st.subheader("Captura de Concepto con Análisis de Precios Unitarios")
             col_a1, col_a2, col_a3 = st.columns([1, 2, 1])
@@ -903,7 +923,6 @@ def render_selector_preciario():
 
             desc_apu = st.text_area("Descripción detallada del Trabajo / Concepto APU", placeholder="Ej. Suministro e instalación de unidad Chiller de 10 TR...")
 
-            # Renderizamos la calculadora APU
             pu_calculado = render_modulo_apu()
 
             st.markdown("---")
@@ -929,7 +948,7 @@ def render_selector_preciario():
                         "Unidad": unidad_apu,
                         "Cantidad": cantidad_apu,
                         "Precio Base": pu_calculado,
-                        "Utilidad %": 0.0,  # Incluida internamente en el desglose APU
+                        "Utilidad %": 0.0,
                         "Precio Venta": pu_calculado,
                         "Importe": importe_apu,
                         "Origen": "Análisis APU",
@@ -937,12 +956,10 @@ def render_selector_preciario():
                     }
                     st.session_state.conceptos_cotizacion.append(nuevo_concepto)
                     st.success("✅ Concepto APU agregado exitosamente.")
-                    # Reiniciamos las tablas de insumos APU
                     st.session_state.apu_materiales = []
                     st.session_state.apu_mano_obra = []
                     st.session_state.apu_equipos = []
                     st.rerun()
-
 
 def render_tabla_conceptos():
     st.markdown("## 3. Resumen de Conceptos Agregados")
@@ -976,7 +993,6 @@ def render_tabla_conceptos():
 
     return subtotal, iva, total
 
-
 def render_seccion_condiciones():
     st.markdown("## 4. Condiciones Comerciales")
     folio = st.session_state.datos_cotizacion.get("folio", "")
@@ -1004,7 +1020,6 @@ def render_seccion_condiciones():
             key="editor_condiciones",
         )
         st.session_state.condiciones_por_folio[folio_key] = condiciones_txt
-
 
 def render_seccion_generacion(subtotal, iva, total):
     st.markdown("## 5. Exportar y Registrar Cotización")
@@ -1065,7 +1080,8 @@ def render_seccion_generacion(subtotal, iva, total):
                 fecha_str = datos["fecha"].strftime("%Y-%m-%d") if datos["fecha"] else date.today().strftime("%Y-%m-%d")
                 registrar_en_historial(
                     datos["folio"], fecha_str, datos["cliente_nombre"],
-                    datos["cliente_empresa"], datos["nombre_cotizacion"], total, datos["cotiza_nombre"]
+                    datos["cliente_empresa"], datos["nombre_cotizacion"], total, datos["cotiza_nombre"],
+                    datos["empresa_cotizadora"]
                 )
                 st.rerun()
 
@@ -1077,7 +1093,6 @@ def render_seccion_generacion(subtotal, iva, total):
         if "pdf_filename" in st.session_state:
             del st.session_state["pdf_filename"]
         st.rerun()
-
 
 # ==========================================
 # FLUJO PRINCIPAL DE LA APLICACIÓN
@@ -1092,7 +1107,6 @@ def main():
     subtotal, iva, total = render_tabla_conceptos()
     render_seccion_condiciones()
     render_seccion_generacion(subtotal, iva, total)
-
 
 if __name__ == "__main__":
     main()
