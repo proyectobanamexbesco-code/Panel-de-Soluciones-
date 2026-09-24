@@ -1,5 +1,6 @@
 import os
 import re
+import traceback
 from datetime import date
 
 import pandas as pd
@@ -256,38 +257,36 @@ def validar_concepto(descripcion, unidad, cantidad, precio_unitario):
 # ==========================================
 def validar_dependencias_google():
     if gspread is None or Credentials is None:
-        raise RuntimeError("Faltan dependencias. Agrega en requirements.txt: gspread y google-auth")
+        raise RuntimeError("Faltan dependencias. Asegúrate de incluir 'gspread' y 'google-auth' en requirements.txt")
 
 def obtener_credenciales_gcp():
     validar_dependencias_google()
     if "gcp_service_account" not in st.secrets:
         raise RuntimeError("No se encontraron credenciales en st.secrets['gcp_service_account'].")
+    
     scopes = [
-        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
     info = dict(st.secrets["gcp_service_account"])
+    
+    # Manejo seguro de la llave privada
     if "private_key" in info and isinstance(info["private_key"], str):
         info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
+        
     return Credentials.from_service_account_info(info, scopes=scopes)
 
 def obtener_cliente_gspread():
+    # Este método directo en memoria evita los errores PermissionError de escritura local en Streamlit Cloud
     return gspread.authorize(obtener_credenciales_gcp())
 
 def abrir_spreadsheet_preciario():
     gc = obtener_cliente_gspread()
-    # URL directa integrada como respaldo
     default_url = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
     preciario_url = str(st.secrets.get("PRECIARIO_BESCO_URL", default_url)).strip()
-    
-    try:
-        return gc.open_by_url(preciario_url)
-    except Exception as e:
-        error_str = repr(e) if not str(e).strip() else str(e)
-        raise RuntimeError(f"Faltan permisos. Asegúrate de compartir la hoja de Google con el correo de la cuenta de servicio. Detalle técnico: {error_str}")
+    return gc.open_by_url(preciario_url)
 
 def detectar_columnas_base(df):
-    columnas = [str(c).strip() for c in df.columns]
     columnas_upper = {str(c).strip().upper(): str(c).strip() for c in df.columns}
     def buscar(candidatas, default=""):
         for c in candidatas:
@@ -301,10 +300,6 @@ def detectar_columnas_base(df):
     ], "")
     col_unidad = buscar(["UNIDAD", "UOM", "UM"], "")
     col_tipo = buscar(["TIPO DE SERVICIO", "TIPO_SERVICIO", "TIPO", "SERVICIO"], "")
-    if not col_clave and len(columnas) >= 1:
-        col_clave = columnas[0]
-    if not col_desc and len(columnas) >= 2:
-        col_desc = columnas[1]
     return {"clave": col_clave, "descripcion": col_desc, "unidad": col_unidad, "tipo_servicio": col_tipo}
 
 def detectar_columnas_region(df):
@@ -313,7 +308,7 @@ def detectar_columnas_region(df):
         col_up = str(col).strip().upper()
         if any(keyword in col_up for keyword in REGION_EXCLUDE_KEYWORDS):
             continue
-        if any(k in col_up for k in ["PU", "PRECIO", "$", "TARIFA", "CENTRO", "SUR", "NORTE", "ORIENTE", "PONIENTE", "OCCIDENTE", "PENINSULA", "PENÍNSULA"]):
+        if any(k in col_up for k in ["PU", "PRECIO", "$", "TARIFA", "CENTRO", "SUR", "NORTE", "ORIENTE", "PONIENTE", "OCCIDENTE", "PENINSULA"]):
             columnas_region.append(col)
     if not columnas_region:
         for posible in ["PRECIO UNITARIO", "PRECIO", "PU", "TARIFA"]:
@@ -326,59 +321,50 @@ def detectar_columnas_region(df):
 def obtener_preciario_besco():
     spreadsheet = abrir_spreadsheet_preciario()
     worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
+    
     if worksheet_name:
         try:
             ws = spreadsheet.worksheet(worksheet_name)
         except Exception:
-            try:
-                ws = spreadsheet.get_worksheet(0)
-            except Exception as e:
-                raise RuntimeError(f"No se pudo acceder a la hoja de cálculo ni a la pestaña '{worksheet_name}': {e}")
+            ws = spreadsheet.get_worksheet(0)
     else:
         ws = spreadsheet.get_worksheet(0)
         
     records = ws.get_all_records()
     if not records:
         return pd.DataFrame()
-    df_raw = pd.DataFrame(records)
-    if df_raw.empty:
-        return pd.DataFrame()
-    mapeo = detectar_columnas_base(df_raw)
-    df = df_raw.copy()
-    if mapeo["clave"]:
-        df = df.rename(columns={mapeo["clave"]: "clave"})
-    else:
-        df["clave"] = ""
-    if mapeo["descripcion"]:
-        df = df.rename(columns={mapeo["descripcion"]: "descripcion"})
-    else:
-        raise RuntimeError("No se encontró una columna de descripción válida en el Preciario BESCO.")
-    if mapeo["unidad"]:
-        df = df.rename(columns={mapeo["unidad"]: "unidad"})
-    else:
-        df["unidad"] = "S/C"
-    if mapeo["tipo_servicio"]:
-        df = df.rename(columns={mapeo["tipo_servicio"]: "tipo_servicio"})
-    else:
-        df["tipo_servicio"] = "Servicio"
+        
+    df = pd.DataFrame(records)
+    mapeo = detectar_columnas_base(df)
+    
+    if mapeo["clave"]: df = df.rename(columns={mapeo["clave"]: "clave"})
+    else: df["clave"] = ""
+    
+    if mapeo["descripcion"]: df = df.rename(columns={mapeo["descripcion"]: "descripcion"})
+    else: raise RuntimeError("El Preciario no tiene columna de Concepto o Descripción.")
+    
+    if mapeo["unidad"]: df = df.rename(columns={mapeo["unidad"]: "unidad"})
+    else: df["unidad"] = "S/C"
+    
+    if mapeo["tipo_servicio"]: df = df.rename(columns={mapeo["tipo_servicio"]: "tipo_servicio"})
+    else: df["tipo_servicio"] = "Servicio"
+    
     df["clave"] = df["clave"].fillna("").astype(str).str.strip()
     df["descripcion"] = df["descripcion"].fillna("").astype(str).str.strip()
     df["unidad"] = df["unidad"].fillna("S/C").astype(str).str.strip()
     df["tipo_servicio"] = df["tipo_servicio"].fillna("Servicio").astype(str).str.strip()
+    
     df = df[df["descripcion"] != ""].copy()
     df.reset_index(drop=True, inplace=True)
     return df
 
 def abrir_spreadsheet_historial():
     gc = obtener_cliente_gspread()
-    historial_url = str(st.secrets.get("HISTORIAL_COTIZACIONES_URL", "")).strip()
     historial_key = str(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "")).strip()
-    historial_title = str(st.secrets.get("HISTORIAL_COTIZACIONES_TITLE", "Historial Cotizaciones Besco")).strip()
-    if historial_url:
-        return gc.open_by_url(historial_url)
-    if historial_key:
-        return gc.open_by_key(historial_key)
-    return gc.open(historial_title)
+    historial_url = str(st.secrets.get("HISTORIAL_COTIZACIONES_URL", "")).strip()
+    if historial_key: return gc.open_by_key(historial_key)
+    if historial_url: return gc.open_by_url(historial_url)
+    raise RuntimeError("Falta configurar HISTORIAL_COTIZACIONES_KEY.")
 
 def obtener_worksheet_historial():
     spreadsheet = abrir_spreadsheet_historial()
@@ -407,10 +393,9 @@ def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, tot
             st.session_state.mensaje_exito = f"ℹ️ La cotización con folio '{folio}' ya estaba registrada en el historial."
             return
         ws.append_row([folio, fecha_texto, cliente, empresa, nombre_cot, round(float(total), 2), cotizador, empresa_emisora])
-        st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en 'Historial Cotizaciones Besco'."
+        st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en Google Sheets."
     except Exception as e:
-        error_str = repr(e) if not str(e).strip() else str(e)
-        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {error_str}"
+        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}"
 
 # ==========================================
 # GENERACIÓN DE PDF (FPDF)
@@ -638,6 +623,7 @@ def render_seccion_identificacion():
             cotiza_telefono = st.text_input("Teléfono de quien cotiza", value=datos["cotiza_telefono"])
         with col_p4:
             cotiza_correo = st.text_input("Correo de quien cotiza", value=datos["cotiza_correo"])
+        
         st.session_state.datos_cotizacion.update({
             "empresa_cotizadora": empresa_cotizadora,
             "folio": folio.strip(), "fecha": fecha,
@@ -656,7 +642,7 @@ def render_captura_conceptos():
             "🚀 Habilitar Búsqueda en Preciario BESCO (Google Sheets)",
             value=st.session_state.toggle_preciario_besco,
             key="toggle_preciario_besco",
-            help="Activa esta opción para conectar con la hoja de Google y buscar conceptos. Si lo apagas, será captura manual.",
+            help="Activa esta opción para conectar con la hoja de Google y buscar conceptos.",
         )
         
         origen_concepto = "Captura manual"
@@ -670,12 +656,12 @@ def render_captura_conceptos():
             try:
                 df_preciario = obtener_preciario_besco()
                 if df_preciario.empty:
-                    st.warning("El Preciario BESCO está vacío.")
+                    st.warning("El Preciario BESCO está vacío o no se encontraron datos.")
                     usar_preciario_besco = False
                 else:
                     columnas_region = detectar_columnas_region(df_preciario)
                     if not columnas_region:
-                        st.warning("No se detectaron columnas de precio o región en el Preciario BESCO. Se habilitará captura manual.")
+                        st.warning("No se detectaron columnas de precio o región en el Preciario. Se habilitará captura manual.")
                         usar_preciario_besco = False
                     else:
                         origen_concepto = "Preciario BESCO"
@@ -723,9 +709,11 @@ def render_captura_conceptos():
                                 help="Puedes ajustar manualmente el precio base antes de agregar el concepto.",
                             )
             except Exception as e:
-                error_str = repr(e) if not str(e).strip() else str(e)
-                st.error(f"❌ Error al cargar el Preciario BESCO: {error_str}")
-                st.info("Se habilitará automáticamente el modo de captura manual.")
+                error_detallado = traceback.format_exc()
+                st.error(f"❌ **Error al conectar con Google Sheets:** {e}")
+                with st.expander("Ver detalle técnico (Para enviar a soporte)"):
+                    st.code(error_detallado)
+                st.info("Se habilitará automáticamente el modo de captura manual mientras se soluciona.")
                 usar_preciario_besco = False
                 origen_concepto = "Captura manual"
 
@@ -845,7 +833,7 @@ def render_seccion_condiciones():
         st.session_state.condiciones_por_folio[folio_key] = condiciones_txt
 
 def render_seccion_generacion(subtotal, iva, total):
-    st.markdown("## 5. Exportar y Registrar Cotización")
+    st.markdown("## 5. Exportar Cotización")
     datos = st.session_state.datos_cotizacion
     conceptos = st.session_state.conceptos_cotizacion
     folio_key = get_folio_key(datos.get("folio", ""))
