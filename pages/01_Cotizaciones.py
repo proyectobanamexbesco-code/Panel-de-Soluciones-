@@ -141,7 +141,6 @@ def init_session_state():
     st.session_state.setdefault("apu_materiales", [])
     st.session_state.setdefault("apu_mano_obra", [])
     st.session_state.setdefault("apu_equipos", [])
-    st.session_state.setdefault("apu_otros", [])
 
 def reset_cotizacion():
     st.session_state.conceptos_cotizacion = []
@@ -156,7 +155,6 @@ def reset_cotizacion():
     st.session_state.apu_materiales = []
     st.session_state.apu_mano_obra = []
     st.session_state.apu_equipos = []
-    st.session_state.apu_otros = []
 
 def formatear_moneda(valor):
     return f"${float(valor):,.2f}"
@@ -284,8 +282,7 @@ def obtener_cliente_gspread():
 
 def abrir_spreadsheet_preciario():
     gc = obtener_cliente_gspread()
-    
-    # URL FIJA QUE SOLICITASTE
+    # URL directa integrada como respaldo
     default_url = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
     preciario_url = str(st.secrets.get("PRECIARIO_BESCO_URL", default_url)).strip()
     
@@ -1101,7 +1098,7 @@ def render_seccion_generacion(subtotal, iva, total):
 def main():
     init_session_state()
     st.title("💰 Sistema de Cotizaciones | Grupo BESCO")
-    st.caption("Captura cotizaciones y conecta automáticamente con tu Preciario BESCO en la nube.")
+    st.caption("Captura cotizaciones, analiza precios unitarios (APU) y conecta automáticamente con tu Preciario BESCO en la nube.")
 
     render_seccion_identificacion()
     render_selector_preciario()
