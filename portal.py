@@ -89,7 +89,7 @@ def apply_light_styles() -> None:
         """
         <style>
         .block-container {
-            padding-top: 1rem;
+            padding-top: 4rem; /* Aumentado de 1rem a 4rem para evitar que se corte el título */
             padding-left: 1rem;
             padding-right: 1rem;
             padding-bottom: 2rem;
