@@ -2,14 +2,12 @@ import streamlit as st
 from dataclasses import dataclass
 from typing import List
 
-
 # =========================================================
 # CONFIGURACIÓN GENERAL
 # =========================================================
 PAGE_TITLE = "Portal Grupo Besco"
 PAGE_ICON = "🏗️"
 LAYOUT = "centered"
-
 
 @dataclass
 class PortalModule:
@@ -19,7 +17,6 @@ class PortalModule:
     description: str
     enabled: bool = True
     status: str = "Activo"
-
 
 # =========================================================
 # MÓDULOS DEL PORTAL
@@ -69,12 +66,11 @@ MODULES: List[PortalModule] = [
         path="pages/06_Reporte_Fotografico_Contratos.py",
         label="Reporte Fotográfico por Contrato",
         icon="📷",
-        description="Reporte fotográfico configurable por contrato, alcance, evidencias y envío por correo.",
+        description="Reporte fotográfico configurable por contrato, alcance y envío.",
         enabled=True,
         status="Activo",
     ),
 ]
-
 
 # =========================================================
 # CONFIGURAR PÁGINA
@@ -85,9 +81,8 @@ st.set_page_config(
     layout=LAYOUT
 )
 
-
 # =========================================================
-# ESTILOS LIGEROS PARA CELULAR
+# ESTILOS LIGEROS PARA CELULAR Y BOTONES AZULES (CUADRÍCULA)
 # =========================================================
 def apply_light_styles() -> None:
     st.markdown(
@@ -121,42 +116,47 @@ def apply_light_styles() -> None:
             border: 1px solid #D9E2EC;
             border-radius: 12px;
             padding: 12px;
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
             font-size: 0.9rem;
             color: #334E68;
+            text-align: center;
         }
 
-        .module-box {
-            border: 1px solid #E6ECF2;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-            background-color: #FFFFFF;
+        /* == CSS PARA LOS BOTONES IDÉNTICOS A LA IMAGEN == */
+        div.stButton > button {
+            background-color: #5B9BD5 !important;
+            color: white !important;
+            border: 2px solid #1F497D !important;
+            border-radius: 12px !important;
+            width: 100% !important;
+            height: 85px !important; /* Altura para hacerlos rectangulares */
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            white-space: normal !important;
+            line-height: 1.2 !important;
+            margin-bottom: 5px;
+        }
+        
+        div.stButton > button:hover {
+            background-color: #41719C !important;
+            border: 2px solid #0F243E !important;
         }
 
-        .module-title {
-            font-weight: 700;
-            color: #1E3A5F;
-            font-size: 1rem;
-            margin-bottom: 4px;
+        div.stButton > button:disabled {
+            background-color: #A6A6A6 !important;
+            border: 2px solid #7F7F7F !important;
+            color: #F0F0F0 !important;
         }
 
         .module-description {
             color: #5B6573;
-            font-size: 0.85rem;
-            margin-bottom: 8px;
-        }
-
-        .status-active {
-            color: #127C56;
-            font-size: 0.78rem;
-            font-weight: 700;
-        }
-
-        .status-soon {
-            color: #9A6700;
-            font-size: 0.78rem;
-            font-weight: 700;
+            font-size: 0.8rem;
+            text-align: center;
+            margin-top: -10px;
+            margin-bottom: 25px;
+            padding: 0 5px;
+            min-height: 40px; /* Alinea la cuadrícula si el texto varía en longitud */
         }
 
         .footer-text {
@@ -165,31 +165,14 @@ def apply_light_styles() -> None:
             font-size: 0.8rem;
             padding-top: 1rem;
         }
-
-        div[data-testid="stPageLink"] a {
-            width: 100%;
-            border-radius: 10px;
-        }
-
-        button {
-            border-radius: 10px !important;
-        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-
 # =========================================================
 # FUNCIONES AUXILIARES
 # =========================================================
-def get_status_class(status: str) -> str:
-    if status.strip().lower() == "activo":
-        return "status-active"
-
-    return "status-soon"
-
-
 def render_header() -> None:
     st.markdown(
         """
@@ -201,10 +184,9 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
 
-
 def render_summary(modules: List[PortalModule]) -> None:
     total_modules = len(modules)
-    active_modules = len([module for module in modules if module.enabled])
+    active_modules = len([m for m in modules if m.enabled and m.status == "Activo"])
 
     st.markdown(
         f"""
@@ -216,52 +198,29 @@ def render_summary(modules: List[PortalModule]) -> None:
         unsafe_allow_html=True,
     )
 
-
-def render_module(module: PortalModule) -> None:
-    status_class = get_status_class(module.status)
-
-    st.markdown(
-        '<div class="module-box">',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        f"""
-        <div class="module-title">{module.icon} {module.label}</div>
-        <div class="module-description">{module.description}</div>
-        <div class="{status_class}">Estado: {module.status}</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if module.enabled:
-        st.page_link(
-            module.path,
-            label=f"Abrir {module.label}",
-            icon=module.icon,
-            use_container_width=True
-        )
-    else:
-        st.button(
-            f"{module.icon} No disponible",
-            disabled=True,
-            use_container_width=True
-        )
-
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True
-    )
-
-
 def render_modules(modules: List[PortalModule]) -> None:
-    for module in modules:
-        render_module(module)
-
+    # Creamos las dos columnas para formar la cuadrícula de 2x3
+    col1, col2 = st.columns(2)
+    
+    for i, module in enumerate(modules):
+        # Asignamos a la columna izquierda los pares (0, 2, 4) y derecha los impares (1, 3, 5)
+        target_col = col1 if i % 2 == 0 else col2
+        
+        with target_col:
+            # Creamos el botón gigante
+            if module.enabled:
+                if st.button(f"{module.icon} {module.label}", key=f"btn_{i}", use_container_width=True):
+                    # Redirigir a la página elegida si el botón es presionado
+                    st.switch_page(module.path)
+            else:
+                st.button(f"{module.icon} {module.label}", key=f"btn_{i}", disabled=True, use_container_width=True)
+            
+            # Colocamos la descripción del módulo discretamente debajo del botón
+            status_html = f"<br><span style='color:#9A6700; font-weight:bold;'>({module.status})</span>" if module.status != "Activo" else ""
+            st.markdown(f"<div class='module-description'>{module.description}{status_html}</div>", unsafe_allow_html=True)
 
 def render_footer() -> None:
     st.divider()
-
     st.markdown(
         """
         <div class="footer-text">
@@ -270,7 +229,6 @@ def render_footer() -> None:
         """,
         unsafe_allow_html=True,
     )
-
 
 # =========================================================
 # MAIN
@@ -281,7 +239,6 @@ def main() -> None:
     render_summary(MODULES)
     render_modules(MODULES)
     render_footer()
-
 
 if __name__ == "__main__":
     main()
