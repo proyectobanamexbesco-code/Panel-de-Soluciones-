@@ -12,7 +12,6 @@ import tempfile
 import contextlib
 from pypdf import PdfWriter
 
-
 # =========================================================
 # CONFIGURACIÓN GENERAL
 # =========================================================
@@ -26,7 +25,6 @@ MAX_FOTOS_RECOMENDADAS = 6
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 LOGO_PATH = os.path.join(ROOT_DIR, "logo besco 2026.jpeg")
 
-
 # =========================================================
 # CONFIGURAR PÁGINA
 # =========================================================
@@ -35,7 +33,6 @@ st.set_page_config(
     page_icon=PAGE_ICON,
     layout=LAYOUT
 )
-
 
 # =========================================================
 # ESTILOS LIGEROS PARA CELULAR
@@ -122,7 +119,6 @@ def aplicar_estilos_ligeros() -> None:
         unsafe_allow_html=True
     )
 
-
 # =========================================================
 # UTILIDADES GENERALES
 # =========================================================
@@ -160,7 +156,6 @@ def limpiar_texto(texto):
 
     return texto.encode("latin-1", "replace").decode("latin-1")
 
-
 @contextlib.contextmanager
 def archivo_temporal(suffix=".jpg"):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
@@ -171,7 +166,6 @@ def archivo_temporal(suffix=".jpg"):
     finally:
         with contextlib.suppress(FileNotFoundError):
             os.remove(tmp.name)
-
 
 def comprimir_imagen_a_temp(file_obj, max_size=(1100, 1100), quality=65):
     file_obj.seek(0)
@@ -190,12 +184,10 @@ def comprimir_imagen_a_temp(file_obj, max_size=(1100, 1100), quality=65):
 
     return tmp.name
 
-
 def contar_archivos(archivos) -> int:
     if not archivos:
         return 0
     return len(archivos)
-
 
 def mostrar_estado_fotos(nombre: str, archivos) -> None:
     cantidad = contar_archivos(archivos)
@@ -210,7 +202,6 @@ def mostrar_estado_fotos(nombre: str, archivos) -> None:
             f"Para celular se recomienda máximo {MAX_FOTOS_RECOMENDADAS}."
         )
 
-
 def limpiar_nombre_archivo(nombre: str) -> str:
     caracteres_invalidos = ["/", "\\", ":", "*", "?", '"', "<", ">", "|"]
     limpio = nombre
@@ -222,7 +213,6 @@ def limpiar_nombre_archivo(nombre: str) -> str:
     limpio = limpio.replace("&", "y")
 
     return limpio
-
 
 # =========================================================
 # CLASE PDF
@@ -539,7 +529,6 @@ class BESCO_PDF(FPDF):
         self.set_draw_color(0, 0, 0)
         self.ln(5)
 
-
 # =========================================================
 # ENVÍO DE CORREO
 # =========================================================
@@ -606,7 +595,6 @@ def enviar_correo(
     except Exception as error:
         st.error(f"Error de conexión SMTP: {error}")
         return False
-
 
 # =========================================================
 # GENERACIÓN DEL PDF
@@ -831,7 +819,6 @@ def generar_pdf(
 
     return pdf_bytes, f_ejec_str
 
-
 # =========================================================
 # DATOS FIJOS
 # =========================================================
@@ -848,6 +835,9 @@ LISTA_OFICINAS = [
     "Odoo",
     "Tampico",
     "Telmex",
+    "Guadalajara",
+    "Colima",
+    "Tepic",
 ]
 
 MAPEO_CORREOS = {
@@ -910,12 +900,24 @@ MAPEO_CORREOS = {
         "joel.perez@besco.mx",
         "gerardo.mendez@besco.mx",
         "sarai.martinez@besco.mx",
-    ],    
+    ],
     "Telmex": [
         "juan.perez@besco.mx",
         "dario.vargas@besco.mx",
         "gerardo.mendez@besco.mx",
         "sarai.martinez@besco.mx",
+    ],
+    "Guadalajara": [
+        "erika.martinez@besco.mx",
+        "dulce.brito@besco.mx",
+    ],
+    "Colima": [
+        "erika.martinez@besco.mx",
+        "dulce.brito@besco.mx",
+    ],
+    "Tepic": [
+        "erika.martinez@besco.mx",
+        "dulce.brito@besco.mx",
     ],
 }
 
@@ -955,7 +957,6 @@ CATEGORIAS_OPCIONES = [
     "Iluminación",
     "Otros",
 ]
-
 
 # =========================================================
 # INTERFAZ PRINCIPAL
