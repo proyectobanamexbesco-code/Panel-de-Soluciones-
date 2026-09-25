@@ -109,7 +109,7 @@ PLANTILLAS_CONDICIONES = {
 }
 
 # ==========================================
-# ESTILOS OSCUROS (ALTO CONTRASTE)
+# ESTILOS OSCUROS (ALTO CONTRASTE CORREGIDO)
 # ==========================================
 def apply_dark_styles() -> None:
     st.markdown(
@@ -168,21 +168,35 @@ def apply_dark_styles() -> None:
             transform: translateY(-2px);
         }
 
-        /* Campos de texto y selectores bien definidos */
+        /* == INPUTS Y SELECTORES (ALTO CONTRASTE) == */
         .stTextInput > div > div > input,
         .stNumberInput > div > div > input,
         .stTextArea > div > textarea,
-        .stDateInput > div > div > input {
+        div[data-baseweb="select"] > div,
+        .stDateInput > div > div {
             background-color: #1E293B !important;
             color: #FFFFFF !important;
             border: 1px solid #64748B !important;
             border-radius: 6px !important;
         }
-        
-        div[data-baseweb="select"] > div {
-            background-color: #1E293B !important;
+
+        /* Forzar transparencia en los contenedores internos rebeldes de fecha y texto */
+        .stDateInput > div > div > div, 
+        [data-baseweb="base-input"] {
+            background-color: transparent !important;
+        }
+
+        /* Color de texto universal para entradas */
+        input, textarea {
             color: #FFFFFF !important;
-            border: 1px solid #64748B !important;
+            -webkit-text-fill-color: #FFFFFF !important;
+        }
+
+        /* Placeholders visibles en tonos claros */
+        ::placeholder, input::placeholder, textarea::placeholder {
+            color: #94A3B8 !important;
+            -webkit-text-fill-color: #94A3B8 !important;
+            opacity: 1 !important;
         }
 
         /* Montos y Métricas en Cian/Azul Claro Brillante */
