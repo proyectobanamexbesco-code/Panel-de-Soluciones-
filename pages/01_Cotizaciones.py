@@ -109,6 +109,96 @@ PLANTILLAS_CONDICIONES = {
 }
 
 # ==========================================
+# ESTILOS OSCUROS (TEMA EJECUTIVO)
+# ==========================================
+def apply_dark_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        /* Forzar fondo oscuro en la aplicación */
+        .stApp {
+            background-color: #0B1421 !important;
+        }
+        
+        [data-testid="stHeader"] {
+            background-color: transparent !important;
+        }
+
+        .block-container {
+            padding-top: 3rem; 
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-bottom: 2rem;
+            max-width: 1000px;
+        }
+
+        /* Títulos con colores claros */
+        h1, h2, h3, h4 {
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
+        }
+        p, span, label, div {
+            color: #E2E8F0 !important;
+        }
+
+        /* Contenedores con borde */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border: 1px solid #334155 !important;
+            border-radius: 12px !important;
+            background-color: #111827 !important;
+            padding: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        /* == CSS PARA LOS BOTONES AZULES == */
+        div.stButton > button {
+            background-color: #5B9BD5 !important;
+            color: white !important;
+            border: 2px solid #1F497D !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        
+        div.stButton > button:hover {
+            background-color: #41719C !important;
+            border: 2px solid #0F243E !important;
+            transform: translateY(-2px);
+        }
+
+        /* == INPUTS Y SELECTORES == */
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stTextArea > div > textarea,
+        .stDateInput > div > div > input {
+            background-color: #1E293B !important;
+            color: #FFFFFF !important;
+            border: 1px solid #475569 !important;
+            border-radius: 6px !important;
+        }
+        
+        div[data-baseweb="select"] > div {
+            background-color: #1E293B !important;
+            color: #FFFFFF !important;
+            border: 1px solid #475569 !important;
+        }
+
+        /* Métricas (Totales de cotización) */
+        [data-testid="stMetricValue"] {
+            color: #38BDF8 !important; /* Azul claro para resaltar el dinero */
+            font-weight: bold !important;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #94A3B8 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# ==========================================
 # FUNCIONES AUXILIARES Y ESTADO DE SESIÓN
 # ==========================================
 def get_default_datos_cotizacion():
@@ -270,14 +360,12 @@ def obtener_credenciales_gcp():
     ]
     info = dict(st.secrets["gcp_service_account"])
     
-    # Manejo seguro de la llave privada
     if "private_key" in info and isinstance(info["private_key"], str):
         info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
         
     return Credentials.from_service_account_info(info, scopes=scopes)
 
 def obtener_cliente_gspread():
-    # Este método directo en memoria evita los errores PermissionError de escritura local en Streamlit Cloud
     return gspread.authorize(obtener_credenciales_gcp())
 
 def abrir_spreadsheet_preciario():
@@ -325,8 +413,12 @@ def obtener_preciario_besco():
     if worksheet_name:
         try:
             ws = spreadsheet.worksheet(worksheet_name)
-        except Exception:
-            ws = spreadsheet.get_worksheet(0)
+        except Exception as ex_tab:
+            nombres_pestanas = [p.title for p in spreadsheet.worksheets()]
+            raise RuntimeError(
+                f"No se encontró la pestaña '{worksheet_name}'. "
+                f"Pestañas disponibles: {nombres_pestanas}. Error original: {ex_tab}"
+            )
     else:
         ws = spreadsheet.get_worksheet(0)
         
@@ -638,11 +730,12 @@ def render_captura_conceptos():
     st.markdown("## 2. Captura de Conceptos")
     with st.container(border=True):
         
+        # --- EL ÚNICO BOTÓN (TOGGLE) PARA ACTIVAR PRECIARIO ---
         usar_preciario_besco = st.toggle(
             "🚀 Habilitar Búsqueda en Preciario BESCO (Google Sheets)",
             value=st.session_state.toggle_preciario_besco,
             key="toggle_preciario_besco",
-            help="Activa esta opción para conectar con la hoja de Google y buscar conceptos.",
+            help="Activa esta opción para conectar con la hoja de Google y buscar conceptos. Si lo apagas, será captura manual.",
         )
         
         origen_concepto = "Captura manual"
@@ -656,12 +749,12 @@ def render_captura_conceptos():
             try:
                 df_preciario = obtener_preciario_besco()
                 if df_preciario.empty:
-                    st.warning("El Preciario BESCO está vacío o no se encontraron datos.")
+                    st.warning("El Preciario BESCO está vacío.")
                     usar_preciario_besco = False
                 else:
                     columnas_region = detectar_columnas_region(df_preciario)
                     if not columnas_region:
-                        st.warning("No se detectaron columnas de precio o región en el Preciario. Se habilitará captura manual.")
+                        st.warning("No se detectaron columnas de precio o región en el Preciario BESCO. Se habilitará captura manual.")
                         usar_preciario_besco = False
                     else:
                         origen_concepto = "Preciario BESCO"
@@ -910,6 +1003,8 @@ def render_seccion_generacion(subtotal, iva, total):
 # ==========================================
 def main():
     init_session_state()
+    apply_dark_styles()
+    
     st.title("💰 Sistema de Cotizaciones | Grupo BESCO")
     st.caption("Captura cotizaciones y conecta automáticamente con tu Preciario BESCO en la nube.")
 
