@@ -172,12 +172,36 @@ def apply_dark_styles() -> None:
         .stTextInput > div > div > input,
         .stNumberInput > div > div > input,
         .stTextArea > div > textarea,
-        div[data-baseweb="select"] > div,
         .stDateInput > div > div {
             background-color: #1E293B !important;
             color: #FFFFFF !important;
             border: 1px solid #64748B !important;
             border-radius: 6px !important;
+        }
+        
+        /* == CORRECCIÓN SELECTBOX (DESPLEGABLE) == */
+        div[data-baseweb="select"] > div {
+            background-color: #1E293B !important;
+            color: #FFFFFF !important;
+            border: 1px solid #64748B !important;
+        }
+        div[data-baseweb="select"] span {
+            color: #FFFFFF !important;
+        }
+        div[data-baseweb="popover"] > div {
+            background-color: #1E293B !important;
+            border: 1px solid #64748B !important;
+        }
+        ul[data-baseweb="menu"] {
+            background-color: #1E293B !important;
+        }
+        ul[data-baseweb="menu"] li {
+            background-color: #1E293B !important;
+            color: #FFFFFF !important;
+        }
+        ul[data-baseweb="menu"] li:hover {
+            background-color: #334155 !important;
+            color: #FFFFFF !important;
         }
 
         /* Forzar transparencia en los contenedores internos rebeldes de fecha y texto */
