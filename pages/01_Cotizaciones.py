@@ -1,6 +1,5 @@
 import os
 import re
-import traceback
 from datetime import date
 
 import pandas as pd
@@ -41,12 +40,10 @@ EMPRESAS_EMISORAS = {
 
 MANUAL_TIPOS_SERVICIO = [
     "Aire Acondicionado", "Servicio", "Producto", "Instalación",
-    "Mantenimiento", "Preventivo", "Correctivo", "Obra Civil", "Otro"
+    "Mantenimiento", "Obra Civil", "Otro"
 ]
-
 MANUAL_UNIDADES = [
-    "PZA", "SERVICIO", "LOTE", "METRO", "METRO LINEAL", "M2", "M3", 
-    "HORA", "DÍA", "MES", "KG", "OTRA"
+    "PZA", "SERVICIO", "LOTE", "M2", "M3", "HORA", "DÍA", "MES", "KG", "OTRA"
 ]
 REGION_EXCLUDE_KEYWORDS = ["METRO NORTE"]
 
@@ -109,135 +106,6 @@ PLANTILLAS_CONDICIONES = {
 }
 
 # ==========================================
-# ESTILOS OSCUROS (ALTO CONTRASTE CORREGIDO)
-# ==========================================
-def apply_dark_styles() -> None:
-    st.markdown(
-        """
-        <style>
-        /* Fondo muy oscuro azul medianoche */
-        .stApp {
-            background-color: #020617 !important;
-        }
-        
-        [data-testid="stHeader"] {
-            background-color: transparent !important;
-        }
-
-        .block-container {
-            padding-top: 2rem; 
-            padding-left: 1rem;
-            padding-right: 1rem;
-            padding-bottom: 2rem;
-            max-width: 1000px;
-        }
-
-        /* Títulos en blanco puro para máximo contraste */
-        h1, h2, h3, h4 {
-            color: #F8FAFC !important;
-            font-weight: 800 !important;
-        }
-        p, span, label, div {
-            color: #E2E8F0 !important;
-        }
-
-        /* Contenedores con borde visible y sombra */
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            border: 2px solid #334155 !important;
-            border-radius: 12px !important;
-            background-color: #0F172A !important;
-            padding: 15px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-            margin-bottom: 20px;
-        }
-
-        /* Botones azules brillantes */
-        div.stButton > button {
-            background-color: #2563EB !important;
-            color: white !important;
-            border: 2px solid #1D4ED8 !important;
-            border-radius: 10px !important;
-            font-weight: 800 !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: all 0.2s ease;
-        }
-        
-        div.stButton > button:hover {
-            background-color: #1D4ED8 !important;
-            border: 2px solid #1E40AF !important;
-            transform: translateY(-2px);
-        }
-
-        /* == INPUTS Y SELECTORES (ALTO CONTRASTE) == */
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input,
-        .stTextArea > div > textarea,
-        .stDateInput > div > div {
-            background-color: #1E293B !important;
-            color: #FFFFFF !important;
-            border: 1px solid #64748B !important;
-            border-radius: 6px !important;
-        }
-        
-        /* == CORRECCIÓN SELECTBOX (DESPLEGABLE) == */
-        div[data-baseweb="select"] > div {
-            background-color: #1E293B !important;
-            color: #FFFFFF !important;
-            border: 1px solid #64748B !important;
-        }
-        div[data-baseweb="select"] span {
-            color: #FFFFFF !important;
-        }
-        div[data-baseweb="popover"] > div {
-            background-color: #1E293B !important;
-            border: 1px solid #64748B !important;
-        }
-        ul[data-baseweb="menu"] {
-            background-color: #1E293B !important;
-        }
-        ul[data-baseweb="menu"] li {
-            background-color: #1E293B !important;
-            color: #FFFFFF !important;
-        }
-        ul[data-baseweb="menu"] li:hover {
-            background-color: #334155 !important;
-            color: #FFFFFF !important;
-        }
-
-        /* Forzar transparencia en los contenedores internos rebeldes de fecha y texto */
-        .stDateInput > div > div > div, 
-        [data-baseweb="base-input"] {
-            background-color: transparent !important;
-        }
-
-        /* Color de texto universal para entradas */
-        input, textarea {
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-        }
-
-        /* Placeholders visibles en tonos claros */
-        ::placeholder, input::placeholder, textarea::placeholder {
-            color: #94A3B8 !important;
-            -webkit-text-fill-color: #94A3B8 !important;
-            opacity: 1 !important;
-        }
-
-        /* Montos y Métricas en Cian/Azul Claro Brillante */
-        [data-testid="stMetricValue"] {
-            color: #38BDF8 !important; 
-            font-weight: 900 !important;
-        }
-        [data-testid="stMetricLabel"] {
-            color: #CBD5E1 !important;
-            font-weight: bold !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# ==========================================
 # FUNCIONES AUXILIARES Y ESTADO DE SESIÓN
 # ==========================================
 def get_default_datos_cotizacion():
@@ -255,11 +123,12 @@ def get_default_datos_cotizacion():
         "cotiza_telefono": "",
         "cotiza_correo": "",
         "nombre_cotizacion": "",
+        "vigencia": "15 DÍAS HÁBILES",
     }
 
 def init_session_state():
     st.session_state.setdefault("conceptos_cotizacion", [])
-    st.session_state.setdefault("toggle_preciario_besco", False)
+    st.session_state.setdefault("toggle_preciario_besco", True)
     st.session_state.setdefault("datos_cotizacion", get_default_datos_cotizacion())
     st.session_state.setdefault("condiciones_por_folio", {BORRADOR_FOLIO_KEY: DEFAULT_CONDICIONES})
     st.session_state.setdefault("plantilla_por_folio", {BORRADOR_FOLIO_KEY: "Base Besco"})
@@ -271,6 +140,7 @@ def init_session_state():
     st.session_state.setdefault("apu_materiales", [])
     st.session_state.setdefault("apu_mano_obra", [])
     st.session_state.setdefault("apu_equipos", [])
+    st.session_state.setdefault("apu_otros", [])
 
 def reset_cotizacion():
     st.session_state.conceptos_cotizacion = []
@@ -285,6 +155,7 @@ def reset_cotizacion():
     st.session_state.apu_materiales = []
     st.session_state.apu_mano_obra = []
     st.session_state.apu_equipos = []
+    st.session_state.apu_otros = []
 
 def formatear_moneda(valor):
     return f"${float(valor):,.2f}"
@@ -392,22 +263,19 @@ def validar_concepto(descripcion, unidad, cantidad, precio_unitario):
 # ==========================================
 def validar_dependencias_google():
     if gspread is None or Credentials is None:
-        raise RuntimeError("Faltan dependencias. Asegúrate de incluir 'gspread' y 'google-auth' en requirements.txt")
+        raise RuntimeError("Faltan dependencias. Agrega en requirements.txt: gspread y google-auth")
 
 def obtener_credenciales_gcp():
     validar_dependencias_google()
     if "gcp_service_account" not in st.secrets:
         raise RuntimeError("No se encontraron credenciales en st.secrets['gcp_service_account'].")
-    
     scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
         "https://www.googleapis.com/auth/drive",
     ]
     info = dict(st.secrets["gcp_service_account"])
-    
     if "private_key" in info and isinstance(info["private_key"], str):
         info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
-        
     return Credentials.from_service_account_info(info, scopes=scopes)
 
 def obtener_cliente_gspread():
@@ -415,11 +283,17 @@ def obtener_cliente_gspread():
 
 def abrir_spreadsheet_preciario():
     gc = obtener_cliente_gspread()
-    default_url = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
-    preciario_url = str(st.secrets.get("PRECIARIO_BESCO_URL", default_url)).strip()
-    return gc.open_by_url(preciario_url)
+    preciario_url = str(st.secrets.get("PRECIARIO_BESCO_URL", "")).strip()
+    preciario_key = str(st.secrets.get("PRECIARIO_BESCO_KEY", "")).strip()
+    preciario_title = str(st.secrets.get("PRECIARIO_BESCO_TITLE", "Preciario Besco")).strip()
+    if preciario_url:
+        return gc.open_by_url(preciario_url)
+    if preciario_key:
+        return gc.open_by_key(preciario_key)
+    return gc.open(preciario_title)
 
 def detectar_columnas_base(df):
+    columnas = [str(c).strip() for c in df.columns]
     columnas_upper = {str(c).strip().upper(): str(c).strip() for c in df.columns}
     def buscar(candidatas, default=""):
         for c in candidatas:
@@ -433,6 +307,10 @@ def detectar_columnas_base(df):
     ], "")
     col_unidad = buscar(["UNIDAD", "UOM", "UM"], "")
     col_tipo = buscar(["TIPO DE SERVICIO", "TIPO_SERVICIO", "TIPO", "SERVICIO"], "")
+    if not col_clave and len(columnas) >= 1:
+        col_clave = columnas[0]
+    if not col_desc and len(columnas) >= 2:
+        col_desc = columnas[1]
     return {"clave": col_clave, "descripcion": col_desc, "unidad": col_unidad, "tipo_servicio": col_tipo}
 
 def detectar_columnas_region(df):
@@ -441,7 +319,7 @@ def detectar_columnas_region(df):
         col_up = str(col).strip().upper()
         if any(keyword in col_up for keyword in REGION_EXCLUDE_KEYWORDS):
             continue
-        if any(k in col_up for k in ["PU", "PRECIO", "$", "TARIFA", "CENTRO", "SUR", "NORTE", "ORIENTE", "PONIENTE", "OCCIDENTE", "PENINSULA"]):
+        if any(k in col_up for k in ["PU", "PRECIO", "$", "TARIFA", "CENTRO", "SUR", "NORTE", "ORIENTE", "PONIENTE", "OCCIDENTE", "PENINSULA", "PENÍNSULA"]):
             columnas_region.append(col)
     if not columnas_region:
         for posible in ["PRECIO UNITARIO", "PRECIO", "PU", "TARIFA"]:
@@ -454,54 +332,59 @@ def detectar_columnas_region(df):
 def obtener_preciario_besco():
     spreadsheet = abrir_spreadsheet_preciario()
     worksheet_name = str(st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "")).strip()
-    
     if worksheet_name:
         try:
             ws = spreadsheet.worksheet(worksheet_name)
-        except Exception as ex_tab:
-            nombres_pestanas = [p.title for p in spreadsheet.worksheets()]
-            raise RuntimeError(
-                f"No se encontró la pestaña '{worksheet_name}'. "
-                f"Pestañas disponibles: {nombres_pestanas}. Error original: {ex_tab}"
-            )
+        except Exception:
+            try:
+                ws = spreadsheet.get_worksheet(0)
+            except Exception as e:
+                raise RuntimeError(f"No se pudo acceder a la hoja de cálculo ni a la pestaña '{worksheet_name}': {e}")
     else:
         ws = spreadsheet.get_worksheet(0)
         
     records = ws.get_all_records()
     if not records:
         return pd.DataFrame()
-        
-    df = pd.DataFrame(records)
-    mapeo = detectar_columnas_base(df)
-    
-    if mapeo["clave"]: df = df.rename(columns={mapeo["clave"]: "clave"})
-    else: df["clave"] = ""
-    
-    if mapeo["descripcion"]: df = df.rename(columns={mapeo["descripcion"]: "descripcion"})
-    else: raise RuntimeError("El Preciario no tiene columna de Concepto o Descripción.")
-    
-    if mapeo["unidad"]: df = df.rename(columns={mapeo["unidad"]: "unidad"})
-    else: df["unidad"] = "S/C"
-    
-    if mapeo["tipo_servicio"]: df = df.rename(columns={mapeo["tipo_servicio"]: "tipo_servicio"})
-    else: df["tipo_servicio"] = "Servicio"
-    
+    df_raw = pd.DataFrame(records)
+    if df_raw.empty:
+        return pd.DataFrame()
+    mapeo = detectar_columnas_base(df_raw)
+    df = df_raw.copy()
+    if mapeo["clave"]:
+        df = df.rename(columns={mapeo["clave"]: "clave"})
+    else:
+        df["clave"] = ""
+    if mapeo["descripcion"]:
+        df = df.rename(columns={mapeo["descripcion"]: "descripcion"})
+    else:
+        raise RuntimeError("No se encontró una columna de descripción válida en el Preciario BESCO.")
+    if mapeo["unidad"]:
+        df = df.rename(columns={mapeo["unidad"]: "unidad"})
+    else:
+        df["unidad"] = "S/C"
+    if mapeo["tipo_servicio"]:
+        df = df.rename(columns={mapeo["tipo_servicio"]: "tipo_servicio"})
+    else:
+        df["tipo_servicio"] = "Servicio"
     df["clave"] = df["clave"].fillna("").astype(str).str.strip()
     df["descripcion"] = df["descripcion"].fillna("").astype(str).str.strip()
     df["unidad"] = df["unidad"].fillna("S/C").astype(str).str.strip()
     df["tipo_servicio"] = df["tipo_servicio"].fillna("Servicio").astype(str).str.strip()
-    
     df = df[df["descripcion"] != ""].copy()
     df.reset_index(drop=True, inplace=True)
     return df
 
 def abrir_spreadsheet_historial():
     gc = obtener_cliente_gspread()
-    historial_key = str(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "")).strip()
     historial_url = str(st.secrets.get("HISTORIAL_COTIZACIONES_URL", "")).strip()
-    if historial_key: return gc.open_by_key(historial_key)
-    if historial_url: return gc.open_by_url(historial_url)
-    raise RuntimeError("Falta configurar HISTORIAL_COTIZACIONES_KEY.")
+    historial_key = str(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "")).strip()
+    historial_title = str(st.secrets.get("HISTORIAL_COTIZACIONES_TITLE", "Historial Cotizaciones Besco")).strip()
+    if historial_url:
+        return gc.open_by_url(historial_url)
+    if historial_key:
+        return gc.open_by_key(historial_key)
+    return gc.open(historial_title)
 
 def obtener_worksheet_historial():
     spreadsheet = abrir_spreadsheet_historial()
@@ -530,9 +413,9 @@ def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, tot
             st.session_state.mensaje_exito = f"ℹ️ La cotización con folio '{folio}' ya estaba registrada en el historial."
             return
         ws.append_row([folio, fecha_texto, cliente, empresa, nombre_cot, round(float(total), 2), cotizador, empresa_emisora])
-        st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en Google Sheets."
+        st.session_state.mensaje_exito = "✅ Cotización registrada y guardada en 'Historial Cotizaciones Besco'."
     except Exception as e:
-        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}"
+        st.session_state.mensaje_error = f"❌ Error al guardar en Google Sheets: {e}."
 
 # ==========================================
 # GENERACIÓN DE PDF (FPDF)
@@ -646,6 +529,8 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime("%d/%m/%Y") if datos["fecha"] else date.today().strftime("%d/%m/%Y")
     nombre_cot = datos.get("nombre_cotizacion", "").strip()
+    vigencia_pdf = datos.get("vigencia", "15 DÍAS HÁBILES").upper()
+    
     pdf.set_font("Arial", "B", 9)
     pdf.cell(35, 5, limpiar_texto_pdf("CLIENTE:"), 0, 0, "R")
     pdf.set_font("Arial", "", 9)
@@ -654,6 +539,7 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     pdf.cell(45, 5, limpiar_texto_pdf("FECHA DE COTIZACION:"), 0, 0, "R")
     pdf.set_font("Arial", "", 9)
     pdf.cell(30, 5, limpiar_texto_pdf(fecha_pdf), 0, 1, "L")
+    
     pdf.set_font("Arial", "B", 9)
     pdf.cell(35, 5, limpiar_texto_pdf("EMPRESA:"), 0, 0, "R")
     pdf.set_font("Arial", "", 9)
@@ -661,7 +547,8 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     pdf.set_font("Arial", "B", 9)
     pdf.cell(45, 5, limpiar_texto_pdf("FECHA VIGENCIA:"), 0, 0, "R")
     pdf.set_font("Arial", "", 9)
-    pdf.cell(30, 5, limpiar_texto_pdf("15 DIAS HABILES"), 0, 1, "L")
+    pdf.cell(30, 5, limpiar_texto_pdf(vigencia_pdf), 0, 1, "L")
+    
     pdf.set_font("Arial", "B", 9)
     pdf.cell(35, 5, limpiar_texto_pdf("FOLIO BESCO:"), 0, 0, "R")
     pdf.set_text_color(18, 52, 86)
@@ -729,13 +616,16 @@ def render_seccion_identificacion():
         st.caption(f"**RFC Asignado:** {rfc_actual}")
 
         st.markdown("---")
-        col_g1, col_g2, col_g3 = st.columns(3)
+        col_g1, col_g2, col_g3, col_g4 = st.columns(4)
         with col_g1:
             folio = st.text_input("Folio / OT / TK", value=datos["folio"], placeholder="Ej. COT-001", max_chars=40)
         with col_g2:
             fecha = st.date_input("Fecha de cotización", value=datos["fecha"])
         with col_g3:
+            vigencia = st.text_input("Vigencia", value=datos.get("vigencia", "15 DÍAS HÁBILES"), placeholder="Ej. 15 DÍAS HÁBILES")
+        with col_g4:
             nombre_cotizacion = st.text_input("Nombre de Cotización / Proyecto", value=datos["nombre_cotizacion"], placeholder="Ej. Reparación de Chiller")
+        
         st.markdown("### Cliente")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
@@ -760,10 +650,10 @@ def render_seccion_identificacion():
             cotiza_telefono = st.text_input("Teléfono de quien cotiza", value=datos["cotiza_telefono"])
         with col_p4:
             cotiza_correo = st.text_input("Correo de quien cotiza", value=datos["cotiza_correo"])
-        
         st.session_state.datos_cotizacion.update({
             "empresa_cotizadora": empresa_cotizadora,
             "folio": folio.strip(), "fecha": fecha,
+            "vigencia": vigencia.strip(),
             "cliente_nombre": cliente_nombre.strip(), "cliente_empresa": cliente_empresa.strip(),
             "cliente_contacto": cliente_contacto.strip(), "cliente_telefono": cliente_telefono.strip(),
             "cliente_correo": cliente_correo.strip(), "cotiza_nombre": cotiza_nombre.strip(),
@@ -886,31 +776,29 @@ def render_modulo_apu():
     """)
     return precio_unitario_calculado
 
-def render_captura_conceptos():
+def render_selector_preciario():
     st.markdown("## 2. Captura de Conceptos")
     modalidad_cotizacion = st.radio(
         "Selecciona la Modalidad de Cotización para agregar conceptos:",
-        ["Cotización Directa (Captura Manual)", "Cotización con Análisis de Precios Unitarios (APU)"],
+        ["Cotización Directa (Preciario / Manual)", "Cotización con Análisis de Precios Unitarios (APU)"],
         horizontal=True
     )
 
-    if modalidad_cotizacion == "Cotización Directa (Captura Manual)":
+    if modalidad_cotizacion == "Cotización Directa (Preciario / Manual)":
         with st.container(border=True):
-            origen_concepto = "Captura manual"
-            
             usar_preciario_besco = st.toggle(
-                "🚀 Habilitar Búsqueda en Preciario BESCO (Google Sheets)",
+                "Habilitar Preciario BESCO",
                 value=st.session_state.toggle_preciario_besco,
                 key="toggle_preciario_besco",
-                help="Activa esta opción para conectar con la hoja de Google y buscar conceptos.",
+                help="Activa esta opción para seleccionar conceptos directamente del Preciario BESCO.",
             )
-            
+            origen_concepto = "Captura manual"
             clave_preciario = ""
             tipo_servicio = "Servicio"
             descripcion = ""
             unidad = "PZA"
             precio_unitario = DEFAULT_PRECIO
-            
+
             if usar_preciario_besco:
                 try:
                     df_preciario = obtener_preciario_besco()
@@ -920,7 +808,7 @@ def render_captura_conceptos():
                     else:
                         columnas_region = detectar_columnas_region(df_preciario)
                         if not columnas_region:
-                            st.warning("No se detectaron columnas de precio o región. Se habilitará captura manual.")
+                            st.warning("No se detectaron columnas de precio o región en el Preciario BESCO. Se habilitará captura manual.")
                             usar_preciario_besco = False
                         else:
                             origen_concepto = "Preciario BESCO"
@@ -968,16 +856,14 @@ def render_captura_conceptos():
                                     help="Puedes ajustar manualmente el precio base antes de agregar el concepto.",
                                 )
                 except Exception as e:
-                    error_detallado = traceback.format_exc()
-                    st.error(f"❌ **Error al conectar con Google Sheets:** {e}")
-                    with st.expander("Ver detalle técnico (Para enviar a soporte)"):
-                        st.code(error_detallado)
-                    st.info("Se habilitará automáticamente el modo de captura manual mientras se soluciona.")
+                    st.error(f"❌ Error al cargar el Preciario BESCO: {e}")
+                    st.info("Se habilitará automáticamente el modo de captura manual.")
                     usar_preciario_besco = False
                     origen_concepto = "Captura manual"
 
             if not usar_preciario_besco:
                 origen_concepto = "Captura manual"
+                st.info("Modo de captura manual habilitado.")
                 col1, col2, col3 = st.columns([1, 2, 1])
                 with col1:
                     clave_preciario = st.text_input("Clave / Item", value="", placeholder="Ej. SERV-001")
@@ -985,7 +871,6 @@ def render_captura_conceptos():
                     tipo_servicio = st.selectbox("Tipo de Servicio", MANUAL_TIPOS_SERVICIO, index=1)
                 with col3:
                     unidad = st.selectbox("Unidad", MANUAL_UNIDADES, index=0)
-                
                 descripcion = st.text_area("Descripción de producto o servicio", value="", placeholder="Escribe el concepto detallado...")
                 precio_unitario = st.number_input("Precio Unitario Base ($)", min_value=0.0, value=0.0, step=10.0, format="%.2f")
 
@@ -997,7 +882,7 @@ def render_captura_conceptos():
                 utilidad_pct = st.number_input(
                     "% Utilidad a aplicar",
                     min_value=0.0,
-                    value=DEFAULT_UTILIDAD_MANUAL,
+                    value=UTILIDAD_PRECIARIO if usar_preciario_besco else DEFAULT_UTILIDAD_MANUAL,
                     step=0.5,
                     format="%.2f",
                 )
@@ -1144,7 +1029,7 @@ def render_seccion_condiciones():
         st.session_state.condiciones_por_folio[folio_key] = condiciones_txt
 
 def render_seccion_generacion(subtotal, iva, total):
-    st.markdown("## 5. Exportar Cotización")
+    st.markdown("## 5. Exportar y Registrar Cotización")
     datos = st.session_state.datos_cotizacion
     conceptos = st.session_state.conceptos_cotizacion
     folio_key = get_folio_key(datos.get("folio", ""))
@@ -1155,7 +1040,7 @@ def render_seccion_generacion(subtotal, iva, total):
     if st.session_state.mensaje_error:
         st.error(st.session_state.mensaje_error)
 
-    col_gen1, col_gen2 = st.columns(2)
+    col_gen1, col_gen2, col_gen3 = st.columns(3)
 
     with col_gen1:
         if st.button("📄 Generar Cotización PDF", type="primary", use_container_width=True):
@@ -1189,6 +1074,24 @@ def render_seccion_generacion(subtotal, iva, total):
                 use_container_width=True,
             )
 
+    with col_gen3:
+        if st.button("📊 Guardar en Historial Google Sheets", use_container_width=True):
+            errores = validar_datos_cotizacion(datos)
+            if not conceptos:
+                errores.append("Agrega al menos un concepto a la cotización.")
+            if errores:
+                st.session_state.mensaje_error = " Por favor corrige los siguientes datos:\n" + "\n".join(f"- {e}" for e in errores)
+                st.session_state.mensaje_exito = ""
+                st.rerun()
+            else:
+                fecha_str = datos["fecha"].strftime("%Y-%m-%d") if datos["fecha"] else date.today().strftime("%Y-%m-%d")
+                registrar_en_historial(
+                    datos["folio"], fecha_str, datos["cliente_nombre"],
+                    datos["cliente_empresa"], datos["nombre_cotizacion"], total, datos["cotiza_nombre"],
+                    datos["empresa_cotizadora"]
+                )
+                st.rerun()
+
     st.markdown("---")
     if st.button("🔄 Reiniciar / Nueva Cotización"):
         reset_cotizacion()
@@ -1203,19 +1106,11 @@ def render_seccion_generacion(subtotal, iva, total):
 # ==========================================
 def main():
     init_session_state()
-    apply_dark_styles()
-    
-    # --- HEADER CON LOGO ---
-    col_logo1, col_logo2, col_logo3 = st.columns([1, 1.5, 1])
-    with col_logo2:
-        if os.path.exists("logo besco 2026.jpeg"):
-            st.image("logo besco 2026.jpeg", use_container_width=True)
-            
     st.title("💰 Sistema de Cotizaciones | Grupo BESCO")
-    st.caption("Crea cotizaciones de captura manual directa o basadas en Análisis de Precios Unitarios (APU).")
+    st.caption("Crea cotizaciones directas (preciario/manual) o basadas en Análisis de Precios Unitarios (APU).")
 
     render_seccion_identificacion()
-    render_captura_conceptos()
+    render_selector_preciario()
     subtotal, iva, total = render_tabla_conceptos()
     render_seccion_condiciones()
     render_seccion_generacion(subtotal, iva, total)
