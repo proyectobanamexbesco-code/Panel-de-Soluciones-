@@ -9,7 +9,7 @@ from fpdf import FPDF
 st.set_page_config(page_title="Cotizaciones | Besco", page_icon="💰", layout="wide")
 
 # ==========================================
-# ESTILOS OSCUROS (TEMA EJECUTIVO BESCO)
+# ESTILOS OSCUROS (TEMA EJECUTIVO BESCO) - CON FIX DE CONTRASTE
 # ==========================================
 def apply_dark_styles():
     st.markdown(
@@ -46,26 +46,39 @@ def apply_dark_styles():
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
         }
 
-        /* Inputs, Textareas, Date y Selectbox */
+        /* Inputs, Textareas, Date */
         div[data-baseweb="input"] > div, 
-        div[data-baseweb="select"] > div, 
         div[data-baseweb="textarea"] > div {
             background-color: #1E293B !important;
             border: 1px solid #475569 !important;
             color: #F8FAFC !important;
             border-radius: 8px !important;
         }
+
+        /* FIX DE CONTRASTE ESTRICTO PARA EL SELECTBOX (EMPRESAS Y UNIDADES) */
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="select"] > div:hover,
+        div[data-baseweb="select"] > div:focus-within {
+            background-color: #1E293B !important;
+            border: 1px solid #475569 !important;
+            border-radius: 8px !important;
+        }
         
-        input, textarea, div[data-baseweb="select"] div {
+        /* Forzar texto blanco en todas las capas internas del selectbox y inputs */
+        input, textarea, 
+        div[data-baseweb="select"] span, 
+        div[data-baseweb="select"] div {
             color: #F8FAFC !important;
+            -webkit-text-fill-color: #F8FAFC !important;
         }
         
         input::placeholder, textarea::placeholder {
             color: #94A3B8 !important;
             opacity: 1 !important;
+            -webkit-text-fill-color: #94A3B8 !important;
         }
 
-        /* Fix para el menú desplegable (Popover) */
+        /* Fix para el menú desplegable abierto (Popover) */
         div[data-baseweb="popover"] > div {
             background-color: #1E293B !important;
             border: 1px solid #475569 !important;
@@ -229,6 +242,7 @@ def get_default_datos_cotizacion():
         "cotiza_telefono": "",
         "cotiza_correo": "",
         "nombre_cotizacion": "",
+        "vigencia": "15 DÍAS",
     }
 
 def init_session_state():
@@ -477,6 +491,8 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     folio_pdf = datos["folio"] if datos["folio"] else "COT-S-N"
     fecha_pdf = datos["fecha"].strftime("%d/%m/%Y") if datos["fecha"] else date.today().strftime("%d/%m/%Y")
     nombre_cot = datos.get("nombre_cotizacion", "").strip()
+    vigencia_pdf = datos.get("vigencia", "15 DÍAS").upper()
+    
     pdf.set_font("Arial", "B", 9)
     pdf.cell(35, 5, limpiar_texto_pdf("CLIENTE:"), 0, 0, "R")
     pdf.set_font("Arial", "", 9)
@@ -492,7 +508,7 @@ def generar_pdf_cotizacion(datos, conceptos, subtotal, iva, total, condiciones):
     pdf.set_font("Arial", "B", 9)
     pdf.cell(45, 5, limpiar_texto_pdf("FECHA VIGENCIA:"), 0, 0, "R")
     pdf.set_font("Arial", "", 9)
-    pdf.cell(30, 5, limpiar_texto_pdf("15 DIAS HABILES"), 0, 1, "L")
+    pdf.cell(30, 5, limpiar_texto_pdf(vigencia_pdf), 0, 1, "L")
     pdf.set_font("Arial", "B", 9)
     pdf.cell(35, 5, limpiar_texto_pdf("FOLIO BESCO:"), 0, 0, "R")
     pdf.set_text_color(227, 24, 55) # Rojo Besco
@@ -563,12 +579,14 @@ def render_seccion_identificacion():
             st.info(f"**RFC Asignado:**\n{rfc_actual}")
 
         st.markdown("---")
-        col_g1, col_g2, col_g3 = st.columns(3)
+        col_g1, col_g2, col_g3, col_g4 = st.columns(4)
         with col_g1:
             folio = st.text_input("Folio / OT / TK", value=datos["folio"], placeholder="Ej. COT-001", max_chars=40)
         with col_g2:
             fecha = st.date_input("Fecha de cotización", value=datos["fecha"])
         with col_g3:
+            vigencia = st.text_input("Vigencia", value=datos.get("vigencia", "15 DÍAS HÁBILES"))
+        with col_g4:
             nombre_cotizacion = st.text_input("Nombre de Cotización / Proyecto", value=datos["nombre_cotizacion"], placeholder="Ej. Reparación de Chiller")
         
         st.markdown("### Cliente")
@@ -599,7 +617,7 @@ def render_seccion_identificacion():
         
         st.session_state.datos_cotizacion.update({
             "empresa_cotizadora": empresa_cotizadora,
-            "folio": folio.strip(), "fecha": fecha,
+            "folio": folio.strip(), "fecha": fecha, "vigencia": vigencia.strip(),
             "cliente_nombre": cliente_nombre.strip(), "cliente_empresa": cliente_empresa.strip(),
             "cliente_contacto": cliente_contacto.strip(), "cliente_telefono": cliente_telefono.strip(),
             "cliente_correo": cliente_correo.strip(), "cotiza_nombre": cotiza_nombre.strip(),
