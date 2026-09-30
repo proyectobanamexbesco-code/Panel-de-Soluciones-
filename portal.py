@@ -80,42 +80,48 @@ st.set_page_config(
     page_title=PAGE_TITLE,
     page_icon=PAGE_ICON,
     layout=LAYOUT,
-    initial_sidebar_state="expanded" # Forza a que el menú izquierdo inicie abierto
+    initial_sidebar_state="expanded"
 )
 
 # =========================================================
-# ESTILOS OSCUROS (TEMA EJECUTIVO) Y BOTONES AZULES
+# ESTILOS OSCUROS (TEMA EJECUTIVO)
 # =========================================================
 def apply_dark_styles() -> None:
     st.markdown(
         """
         <style>
-        /* Forzar fondo oscuro en la aplicación para el tema ejecutivo */
         .stApp {
             background-color: #0B1421 !important;
         }
-        
         [data-testid="stHeader"] {
             background-color: transparent !important;
         }
 
-        /* ===== FIX: ESTILOS PARA LA BARRA LATERAL IZQUIERDA (SIDEBAR) ===== */
+        /* ===== FIX: BARRA LATERAL IZQUIERDA (SIDEBAR) ===== */
         [data-testid="stSidebar"] {
             background-color: #162032 !important;
             border-right: 1px solid #334155 !important;
         }
-        
+        [data-testid="stSidebarNav"] {
+            background-color: #162032 !important;
+        }
         [data-testid="stSidebar"] * {
             color: #F8FAFC !important;
         }
-        
         [data-testid="stSidebarNav"] span {
             color: #F8FAFC !important;
             font-weight: 500 !important;
         }
-        
         [data-testid="stSidebarNav"] li:hover {
             background-color: #1E293B !important;
+        }
+        [data-testid="stSidebarNav"] [aria-current="page"] {
+            background-color: #363C98 !important;
+            border-radius: 8px !important;
+        }
+        [data-testid="stSidebarNav"] [aria-current="page"] span {
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
         }
 
         /* Contenedor principal */
@@ -126,8 +132,6 @@ def apply_dark_styles() -> None:
             padding-bottom: 2rem;
             max-width: 760px;
         }
-
-        /* Títulos con colores claros para contrastar el fondo oscuro */
         .portal-title {
             text-align: center;
             font-size: 1.8rem;
@@ -136,15 +140,12 @@ def apply_dark_styles() -> None:
             margin-bottom: 0.2rem;
             margin-top: 1rem;
         }
-
         .portal-subtitle {
             text-align: center;
             font-size: 0.95rem;
             color: #94A3B8;
             margin-bottom: 1.5rem;
         }
-
-        /* Caja de resumen estilizada en tono oscuro */
         .summary-box {
             background-color: #1E293B;
             border: 1px solid #334155;
@@ -156,8 +157,6 @@ def apply_dark_styles() -> None:
             text-align: center;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
-
-        /* == CSS PARA LOS BOTONES AZULES IDÉNTICOS A LA IMAGEN == */
         div.stButton > button {
             background-color: #5B9BD5 !important;
             color: white !important;
@@ -173,13 +172,11 @@ def apply_dark_styles() -> None:
             margin-bottom: 5px;
             transition: all 0.2s ease;
         }
-        
         div.stButton > button:hover {
             background-color: #41719C !important;
             border: 2px solid #0F243E !important;
             transform: translateY(-2px);
         }
-
         div.stButton > button:disabled {
             background-color: #475569 !important;
             border: 2px solid #334155 !important;
@@ -187,8 +184,6 @@ def apply_dark_styles() -> None:
             box-shadow: none;
             transform: none;
         }
-
-        /* Descripciones de los módulos adaptadas al modo oscuro */
         .module-description {
             color: #94A3B8;
             font-size: 0.8rem;
@@ -198,7 +193,6 @@ def apply_dark_styles() -> None:
             padding: 0 5px;
             min-height: 40px; 
         }
-
         .footer-text {
             text-align: center;
             color: #64748B;
@@ -214,13 +208,11 @@ def apply_dark_styles() -> None:
 # FUNCIONES AUXILIARES
 # =========================================================
 def render_header() -> None:
-    # 1. Agregar el Logo proporcionado centrado antes del título
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         if os.path.exists("logo besco 2026.jpeg"):
             st.image("logo besco 2026.jpeg", use_container_width=True)
 
-    # 2. Renderizar los Títulos
     st.markdown(
         """
         <div class="portal-title">🏗️ Portal Grupo Besco</div>
