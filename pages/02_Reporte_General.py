@@ -55,7 +55,7 @@ def aplicar_estilos_oscuros() -> None:
             padding-left: 1rem;
             padding-right: 1rem;
             padding-bottom: 2rem;
-            max-width: 780px;
+            max-width: 900px; /* Se amplió un poco para que las 3 columnas respiren mejor */
         }
 
         /* Títulos y subtítulos principales */
@@ -1094,29 +1094,42 @@ def main():
         unsafe_allow_html=True
     )
 
-    cliente = st.text_input("Cliente")
-    folio = st.text_input("Folio / OT / TK", max_chars=30)
-    fecha_ejecucion = st.date_input("Fecha de Ejecución", datetime.now())
+    # ---------------------------------------------------------
+    # NUEVA ESTRUCTURA EN 3 COLUMNAS
+    # ---------------------------------------------------------
+    col_id1, col_id2, col_id3 = st.columns(3)
+    with col_id1:
+        cliente = st.text_input("Cliente")
+    with col_id2:
+        sucursal = st.text_input("Sucursal / Inmueble")
+    with col_id3:
+        oficina = st.selectbox(
+            "Oficina Responsable",
+            LISTA_OFICINAS
+        )
 
-    sucursal = st.text_input("Sucursal / Inmueble")
+    col_id4, col_id5, col_id6 = st.columns(3)
+    with col_id4:
+        folio = st.text_input("Folio / OT / TK", max_chars=30)
+    with col_id5:
+        fecha_ejecucion = st.date_input("Fecha de Ejecución", datetime.now())
+    with col_id6:
+        tecnico = st.text_input("Técnico Asignado")
 
-    oficina = st.selectbox(
-        "Oficina Responsable",
-        LISTA_OFICINAS
-    )
-
-    tecnico = st.text_input("Técnico Asignado")
-    supervisor = st.text_input("Supervisor")
-
-    tipo_serv = st.selectbox(
-        "Servicio",
-        ["Preventivo", "Correctivo", "Emergencia"]
-    )
-
-    referencia = st.selectbox(
-        "Referencia",
-        ["Con Ticket", "Sin Ticket"]
-    )
+    col_id7, col_id8, col_id9 = st.columns(3)
+    with col_id7:
+        supervisor = st.text_input("Supervisor")
+    with col_id8:
+        tipo_serv = st.selectbox(
+            "Servicio",
+            ["Preventivo", "Correctivo", "Emergencia"]
+        )
+    with col_id9:
+        referencia = st.selectbox(
+            "Referencia",
+            ["Con Ticket", "Sin Ticket"]
+        )
+    # ---------------------------------------------------------
 
     st.markdown(
         '<div class="section-title">2. Evidencia Documental</div>',
