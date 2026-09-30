@@ -9,7 +9,7 @@ from fpdf import FPDF
 st.set_page_config(page_title="Cotizaciones | Besco", page_icon="💰", layout="wide")
 
 # ==========================================
-# ESTILOS OSCUROS (TEMA EJECUTIVO BESCO) - CON FIX DE CONTRASTE
+# ESTILOS OSCUROS (TEMA EJECUTIVO BESCO) - CON FIX DE CONTRASTE Y LETRA NEGRA
 # ==========================================
 def apply_dark_styles():
     st.markdown(
@@ -46,49 +46,50 @@ def apply_dark_styles():
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
         }
 
-        /* Inputs, Textareas, Date */
+        /* Inputs, Textareas, Date - FONDO BLANCO */
         div[data-baseweb="input"] > div, 
         div[data-baseweb="textarea"] > div {
-            background-color: #1E293B !important;
+            background-color: #FFFFFF !important;
             border: 1px solid #475569 !important;
-            color: #F8FAFC !important;
             border-radius: 8px !important;
         }
 
-        /* FIX DE CONTRASTE ESTRICTO PARA EL SELECTBOX (EMPRESAS Y UNIDADES) */
+        /* FIX DE CONTRASTE ESTRICTO PARA EL SELECTBOX (EMPRESAS Y UNIDADES) - FONDO BLANCO */
         div[data-baseweb="select"] > div,
         div[data-baseweb="select"] > div:hover,
         div[data-baseweb="select"] > div:focus-within {
-            background-color: #1E293B !important;
+            background-color: #FFFFFF !important;
             border: 1px solid #475569 !important;
             border-radius: 8px !important;
         }
         
-        /* Forzar texto blanco en todas las capas internas del selectbox y inputs */
+        /* Forzar texto NEGRO en todas las capas internas del selectbox y inputs */
         input, textarea, 
         div[data-baseweb="select"] span, 
         div[data-baseweb="select"] div {
-            color: #F8FAFC !important;
-            -webkit-text-fill-color: #F8FAFC !important;
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            font-weight: 500 !important;
         }
         
+        /* Placeholders (texto gris cuando está vacío) */
         input::placeholder, textarea::placeholder {
-            color: #94A3B8 !important;
+            color: #64748B !important;
             opacity: 1 !important;
-            -webkit-text-fill-color: #94A3B8 !important;
+            -webkit-text-fill-color: #64748B !important;
         }
 
-        /* Fix para el menú desplegable abierto (Popover) */
+        /* Fix para el menú desplegable abierto (Popover) - FONDO BLANCO Y LETRA NEGRA */
         div[data-baseweb="popover"] > div {
-            background-color: #1E293B !important;
+            background-color: #FFFFFF !important;
             border: 1px solid #475569 !important;
         }
         ul[role="listbox"] li {
-            color: #F8FAFC !important;
-            background-color: #1E293B !important;
+            color: #000000 !important;
+            background-color: #FFFFFF !important;
         }
         ul[role="listbox"] li:hover {
-            background-color: #334155 !important;
+            background-color: #E2E8F0 !important;
         }
 
         /* Botones estándar (Azul Besco) */
