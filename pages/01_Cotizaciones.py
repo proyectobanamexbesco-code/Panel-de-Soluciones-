@@ -9,7 +9,7 @@ from fpdf import FPDF
 try:
     import gspread
     from google.oauth2.service_account import Credentials
-except Exception:
+except ImportError:
     gspread = None
     Credentials = None
 
@@ -48,23 +48,22 @@ def apply_dark_styles():
         ul[role="listbox"] li { color: #F8FAFC !important; background-color: #1E293B !important; }
         ul[role="listbox"] li:hover { background-color: #334155 !important; }
         div.stButton > button {
-            background-color: #5B9BD5 !important; color: white !important;
-            border: 1px solid #1F497D !important; border-radius: 8px !important;
+            background-color: #363C98 !important; color: white !important;
+            border: 1px solid #282D75 !important; border-radius: 8px !important;
             font-weight: 600 !important; transition: all 0.2s ease;
         }
         div.stButton > button:hover {
-            background-color: #41719C !important; border: 1px solid #0F243E !important; transform: translateY(-2px);
+            background-color: #4C52BC !important; border: 1px solid #363C98 !important; transform: translateY(-2px);
         }
         div.stButton > button[data-testid="baseButton-primary"] {
-            background-color: #2563EB !important; border: 1px solid #1D4ED8 !important;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4);
+            background-color: #E31837 !important; border: 1px solid #B01028 !important;
+            box-shadow: 0 4px 6px -1px rgba(227, 24, 55, 0.4);
         }
-        div.stButton > button[data-testid="baseButton-primary"]:hover { background-color: #1D4ED8 !important; }
+        div.stButton > button[data-testid="baseButton-primary"]:hover { background-color: #FA2A4A !important; }
         [data-testid="stDataFrame"] {
             background-color: #1E293B !important; border-radius: 8px !important; border: 1px solid #334155 !important;
         }
         [data-testid="stMetricValue"] { color: #38BDF8 !important; font-weight: 800 !important; }
-        /* Estilo para el Radio Button Grande */
         div[role="radiogroup"] {
             background-color: #1E293B; padding: 10px; border-radius: 10px; border: 1px solid #334155;
         }
@@ -100,11 +99,9 @@ TABLE_MIN_ROW_HEIGHT = 10
 DEFAULT_CONDICIONES = (
     "- TIEMPO DE ENTREGA DE MATERIAL DE 15 DÍAS HÁBILES.\n"
     "- SE REQUIERE ORDEN DE COMPRA, CORREO DE AUTORIZACION, PEDIDO O CONTRATO, PARA INICIAR LAS ACTIVIDADES.\n"
-    "- VIGENCIA DE LA COTIZACIÓN 15 DÍAS HÁBILES.\n"
+    "- VIGENCIA DE LA COTIZACIÓN ACORDE A LO INDICADO EN LA CABECERA.\n"
     "- EL PRECIO QUE SE OFERTA ES POR EL TOTAL DE LOS TRABAJOS, TRABAJOS ADICIONALES SERAN COTIZADOS POR SEPARADO."
 )
-
-PRECIARIO_URL = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit?usp=sharing"
 
 # ==========================================
 # FUNCIONES AUXILIARES Y ESTADO DE SESIÓN
@@ -124,13 +121,11 @@ def init_session_state():
     st.session_state.setdefault("datos_cotizacion", get_default_datos_cotizacion())
     st.session_state.setdefault("editor_condiciones", DEFAULT_CONDICIONES)
     st.session_state.setdefault("apu_materiales", [])
-    st.session_state.setdefault("apu_mano_obra", [])
 
 def reset_cotizacion():
     st.session_state.conceptos_cotizacion = []
     st.session_state.datos_cotizacion = get_default_datos_cotizacion()
     st.session_state.apu_materiales = []
-    st.session_state.apu_mano_obra = []
 
 def formatear_moneda(valor):
     return f"${float(valor):,.2f}"
@@ -165,7 +160,7 @@ def cargar_datos_preciario():
         return pd.DataFrame(), "Faltan dependencias gspread o google-auth en requirements.txt."
     
     if "gcp_service_account" not in st.secrets:
-        return pd.DataFrame(), "No se encontraron credenciales en st.secrets['gcp_service_account']."
+        return pd.DataFrame(), "No se encontraron credenciales gcp_service_account en los secrets."
         
     try:
         info = dict(st.secrets["gcp_service_account"])
@@ -176,12 +171,18 @@ def cargar_datos_preciario():
         creds = Credentials.from_service_account_info(info, scopes=scopes)
         gc = gspread.authorize(creds)
         
-        spreadsheet = gc.open_by_url(PRECIARIO_URL)
-        ws = spreadsheet.get_worksheet(0)
+        # Obtener URL y Pestaña de los secrets
+        url = st.secrets.get("PRECIARIO_BESCO_URL", "")
+        worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex")
+        
+        if not url: return pd.DataFrame(), "No se encontró PRECIARIO_BESCO_URL en secrets."
+        
+        spreadsheet = gc.open_by_url(url)
+        ws = spreadsheet.worksheet(worksheet_name)
         records = ws.get_all_records()
         return pd.DataFrame(records), ""
     except Exception as e:
-        return pd.DataFrame(), str(e)
+        return pd.DataFrame(), f"Error al leer la hoja: {str(e)}"
 
 # ==========================================
 # GENERACIÓN DE PDF (FPDF)
@@ -428,7 +429,7 @@ def render_modulo_apu():
 def render_captura_conceptos():
     st.markdown("## 2. Captura de Conceptos")
     
-    # BOTÓN GRANDE PARA ELEGIR MODALIDAD
+    # RADIO BUTTON PARA SELECCIONAR MODALIDAD
     modo = st.radio(
         "Selecciona la Modalidad de Captura:", 
         ["✍️ Captura Manual", "📊 Preciario Google Sheets", "🛠️ Análisis APU"], 
@@ -466,12 +467,12 @@ def render_captura_conceptos():
                 st.success("✅ Preciario vinculado y cargado exitosamente.")
                 cols = list(df_preciario.columns)
                 
-                # Identificar columnas automáticamente
+                # Coincidir con las columnas de tu imagen de Preciario Sodexo Banamex
                 col_clave = next((c for c in cols if str(c).upper() in ["ITEM", "CLAVE", "CODIGO"]), cols[0])
                 col_desc = next((c for c in cols if str(c).upper() in ["CONCEPTO", "DESCRIPCION"]), cols[1] if len(cols)>1 else cols[0])
                 col_unidad = next((c for c in cols if str(c).upper() in ["UNIDAD", "UOM", "UM"]), cols[2] if len(cols)>2 else cols[0])
                 cols_precios = [c for c in cols if any(k in str(c).upper() for k in ["PU ", "PRECIO", "$"])]
-                if not cols_precios: cols_precios = cols[3:] # Respaldo a columnas restantes
+                if not cols_precios: cols_precios = cols[3:]
                 
                 df_preciario["Busqueda"] = df_preciario[col_clave].astype(str) + " - " + df_preciario[col_desc].astype(str)
                 seleccion = st.selectbox("🔍 Buscar Concepto en el Preciario:", options=[""] + df_preciario["Busqueda"].tolist())
