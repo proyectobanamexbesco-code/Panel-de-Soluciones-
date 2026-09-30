@@ -79,7 +79,8 @@ MODULES: List[PortalModule] = [
 st.set_page_config(
     page_title=PAGE_TITLE,
     page_icon=PAGE_ICON,
-    layout=LAYOUT
+    layout=LAYOUT,
+    initial_sidebar_state="expanded" # Forza a que el menú izquierdo inicie abierto
 )
 
 # =========================================================
@@ -98,6 +99,26 @@ def apply_dark_styles() -> None:
             background-color: transparent !important;
         }
 
+        /* ===== FIX: ESTILOS PARA LA BARRA LATERAL IZQUIERDA (SIDEBAR) ===== */
+        [data-testid="stSidebar"] {
+            background-color: #162032 !important;
+            border-right: 1px solid #334155 !important;
+        }
+        
+        [data-testid="stSidebar"] * {
+            color: #F8FAFC !important;
+        }
+        
+        [data-testid="stSidebarNav"] span {
+            color: #F8FAFC !important;
+            font-weight: 500 !important;
+        }
+        
+        [data-testid="stSidebarNav"] li:hover {
+            background-color: #1E293B !important;
+        }
+
+        /* Contenedor principal */
         .block-container {
             padding-top: 3rem; 
             padding-left: 1rem;
