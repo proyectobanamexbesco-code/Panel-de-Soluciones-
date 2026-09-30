@@ -35,84 +35,184 @@ st.set_page_config(
 )
 
 # =========================================================
-# ESTILOS LIGEROS PARA CELULAR
+# ESTILOS OSCUROS (TEMA EJECUTIVO BESCO) CON INPUTS BLANCOS
 # =========================================================
-def aplicar_estilos_ligeros() -> None:
+def aplicar_estilos_oscuros() -> None:
     st.markdown(
         """
         <style>
+        /* Fondo principal de la aplicación */
+        .stApp {
+            background-color: #0B1421 !important;
+        }
+        
+        [data-testid="stHeader"] {
+            background-color: transparent !important;
+        }
+
         .block-container {
-            padding-top: 1rem;
+            padding-top: 2rem;
             padding-left: 1rem;
             padding-right: 1rem;
             padding-bottom: 2rem;
             max-width: 780px;
         }
 
+        /* Títulos y subtítulos principales */
         .main-title {
             text-align: center;
-            color: #1E3A5F;
-            font-size: 1.7rem;
+            color: #FFFFFF;
+            font-size: 1.8rem;
             font-weight: 800;
             margin-bottom: 0.2rem;
         }
 
         .subtitle {
             text-align: center;
-            color: #5B6573;
-            font-size: 0.92rem;
-            margin-bottom: 1rem;
+            color: #94A3B8;
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
         }
 
+        /* Títulos de sección */
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #E2E8F0;
+            margin-top: 1.5rem;
+            margin-bottom: 0.8rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0.3rem;
+        }
+
+        /* Cajas de estado (Info, Warning, Ok) adaptadas a fondo oscuro */
         .info-box {
-            background-color: #F7F9FC;
-            border: 1px solid #D9E2EC;
+            background-color: #1E293B;
+            border: 1px solid #334155;
             border-radius: 12px;
             padding: 12px;
             margin-bottom: 1rem;
-            color: #334E68;
+            color: #E2E8F0;
             font-size: 0.9rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
         }
 
         .warning-box {
-            background-color: #FFF4E5;
-            border: 1px solid #F3D19C;
+            background-color: #422006;
+            border: 1px solid #78350F;
             border-radius: 12px;
             padding: 12px;
             margin-top: 10px;
             margin-bottom: 10px;
-            color: #9A6700;
+            color: #FDE047;
             font-size: 0.9rem;
         }
 
         .ok-box {
-            background-color: #E3FCEF;
-            border: 1px solid #B7E4C7;
+            background-color: #064E3B;
+            border: 1px solid #065F46;
             border-radius: 12px;
             padding: 12px;
             margin-top: 10px;
             margin-bottom: 10px;
-            color: #127C56;
+            color: #6EE7B7;
             font-size: 0.9rem;
         }
 
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: #1E3A5F;
-            margin-top: 1.2rem;
-            margin-bottom: 0.5rem;
+        /* FIX DE CONTRASTE: Inputs, Textareas, Date, Selectbox con FONDO BLANCO Y LETRA NEGRA */
+        div[data-baseweb="input"] > div, 
+        div[data-baseweb="textarea"] > div,
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="select"] > div:hover,
+        div[data-baseweb="select"] > div:focus-within {
+            background-color: #FFFFFF !important;
+            border: 1px solid #475569 !important;
+            border-radius: 8px !important;
+        }
+        
+        input, textarea, 
+        div[data-baseweb="select"] span, 
+        div[data-baseweb="select"] div {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            font-weight: 500 !important;
+        }
+        
+        input::placeholder, textarea::placeholder {
+            color: #64748B !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: #64748B !important;
+        }
+
+        div[data-baseweb="popover"] > div {
+            background-color: #FFFFFF !important;
+            border: 1px solid #475569 !important;
+        }
+        
+        ul[role="listbox"] li {
+            color: #000000 !important;
+            background-color: #FFFFFF !important;
+        }
+        
+        ul[role="listbox"] li:hover {
+            background-color: #E2E8F0 !important;
+        }
+
+        /* Expanders (Acordeones de Equipos) */
+        [data-testid="stExpander"] {
+            background-color: #162032 !important;
+            border: 1px solid #334155 !important;
+            border-radius: 12px !important;
+        }
+        
+        [data-testid="stExpander"] summary p {
+            color: #FFFFFF !important;
+            font-weight: 600 !important;
+        }
+
+        /* Dataframes (Tablas) */
+        [data-testid="stDataFrame"] {
+            background-color: #1E293B !important;
+            border-radius: 8px !important;
+            border: 1px solid #334155 !important;
+        }
+
+        /* Textos generales (Labels, captions, descripciones) */
+        label, .stMarkdown, .stText, p {
+            color: #E2E8F0 !important;
+        }
+
+        /* Botones estándar (Azul Besco) */
+        div.stButton > button {
+            background-color: #363C98 !important; 
+            color: white !important;
+            border: 1px solid #282D75 !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            transition: all 0.2s ease;
+        }
+        div.stButton > button:hover {
+            background-color: #4C52BC !important;
+            border: 1px solid #363C98 !important;
+            transform: translateY(-2px);
+        }
+        
+        /* Botones Primarios (Rojo Besco) */
+        div.stButton > button[data-testid="baseButton-primary"] {
+            background-color: #E31837 !important;
+            border: 1px solid #B01028 !important;
+            box-shadow: 0 4px 6px -1px rgba(227, 24, 55, 0.4);
+        }
+        div.stButton > button[data-testid="baseButton-primary"]:hover {
+            background-color: #FA2A4A !important;
+            border: 1px solid #E31837 !important;
         }
 
         .footer-text {
             text-align: center;
-            color: #7B8794;
+            color: #64748B;
             font-size: 0.8rem;
             padding-top: 1rem;
-        }
-
-        button {
-            border-radius: 10px !important;
         }
         </style>
         """,
@@ -962,7 +1062,13 @@ CATEGORIAS_OPCIONES = [
 # INTERFAZ PRINCIPAL
 # =========================================================
 def main():
-    aplicar_estilos_ligeros()
+    aplicar_estilos_oscuros()
+
+    # 1. Agregar el Logo proporcionado centrado antes del título
+    col_logo1, col_logo2, col_logo3 = st.columns([1, 1.5, 1])
+    with col_logo2:
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, use_container_width=True)
 
     st.markdown(
         """
