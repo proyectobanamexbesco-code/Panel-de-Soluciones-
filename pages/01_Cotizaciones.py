@@ -175,17 +175,16 @@ def cargar_datos_preciario():
         if "private_key" in info and isinstance(info["private_key"], str):
             info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
             
-        scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+        scopes = ["[https://www.googleapis.com/auth/spreadsheets.readonly](https://www.googleapis.com/auth/spreadsheets.readonly)"]
         creds = Credentials.from_service_account_info(info, scopes=scopes)
         gc = gspread.authorize(creds)
         
-        url_respaldo = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
+        url_respaldo = "[https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit](https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit)"
         url = st.secrets.get("PRECIARIO_BESCO_URL", url_respaldo)
         worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex").strip()
         
         spreadsheet = gc.open_by_url(url)
         
-        # FAILSAFE: Intenta abrir por nombre exacto, si falla, abre la primera hoja (index 0)
         try:
             ws = spreadsheet.worksheet(worksheet_name)
         except Exception:
@@ -571,7 +570,7 @@ def render_generacion(subtotal, iva, total):
             )
             folio_str = st.session_state.datos_cotizacion['folio'] or "S-N"
             st.download_button(
-                label="⬇️️ Descargar PDF", data=pdf_bytes, file_name=f"Cotizacion_{folio_str}.pdf",
+                label="⬇ Descargar PDF", data=pdf_bytes, file_name=f"Cotizacion_{folio_str}.pdf",
                 mime="application/pdf", use_container_width=True
             )
             
