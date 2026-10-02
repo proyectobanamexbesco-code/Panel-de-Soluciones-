@@ -7,6 +7,13 @@ import pandas as pd
 import streamlit as st
 from fpdf import FPDF
 
+# ====================================================================
+# FIX DEFINITIVO PARA STREAMLIT CLOUD (EVITA PERMISSION ERROR)
+# Redirige la escritura temporal de gspread a la carpeta /tmp
+# ====================================================================
+os.environ["XDG_CONFIG_HOME"] = "/tmp"
+os.environ["GSPREAD_SILENCE_WARNINGS"] = "1"
+
 try:
     import gspread
     from google.oauth2.service_account import Credentials
@@ -172,14 +179,13 @@ def cargar_datos_preciario():
         creds = Credentials.from_service_account_info(info, scopes=scopes)
         gc = gspread.authorize(creds)
         
-        # URL de respaldo duro en caso de que el secret esté vacío
         url_respaldo = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
         url = st.secrets.get("PRECIARIO_BESCO_URL", url_respaldo)
         worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex").strip()
         
         spreadsheet = gc.open_by_url(url)
         
-        # FAILSAFE: Intenta abrir por nombre exacto, si falla (por espacios, etc), abre la primera hoja (index 0)
+        # FAILSAFE: Intenta abrir por nombre exacto, si falla, abre la primera hoja (index 0)
         try:
             ws = spreadsheet.worksheet(worksheet_name)
         except Exception:
@@ -189,7 +195,6 @@ def cargar_datos_preciario():
         return pd.DataFrame(records), ""
         
     except Exception as e:
-        # Extraemos el error completo usando repr en lugar de str para que nunca quede en blanco
         return pd.DataFrame(), f"Error técnico ({type(e).__name__}): {repr(e)}"
 
 # ==========================================
@@ -468,8 +473,8 @@ def render_captura_conceptos():
                 df_preciario, error = cargar_datos_preciario()
                 
             if error or df_preciario.empty:
-                st.error(f"❌ Error al conectar con Google Sheets: \n\n{error}")
-                st.info("Revisa tus secretos y asegúrate de haber reiniciado tu aplicación (Reboot app).")
+                st.error(f"❌ Error al conectar con Google Sheets:\n\n{error}")
+                st.info("Asegúrate de presionar 'Reboot app' en Streamlit para limpiar la caché.")
             else:
                 st.success("✅ Preciario vinculado y cargado exitosamente.")
                 cols = list(df_preciario.columns)
