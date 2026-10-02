@@ -1,6 +1,5 @@
 import os
 import re
-import traceback
 from datetime import date
 
 import pandas as pd
@@ -9,17 +8,14 @@ from fpdf import FPDF
 
 # ====================================================================
 # FIX DEFINITIVO PARA STREAMLIT CLOUD (EVITA PERMISSION ERROR)
-# Redirige la escritura temporal de gspread a la carpeta /tmp
 # ====================================================================
 os.environ["XDG_CONFIG_HOME"] = "/tmp"
 os.environ["GSPREAD_SILENCE_WARNINGS"] = "1"
 
 try:
     import gspread
-    from google.oauth2.service_account import Credentials
 except ImportError:
     gspread = None
-    Credentials = None
 
 st.set_page_config(page_title="Cotizaciones | Besco", page_icon="💰", layout="wide")
 
@@ -160,12 +156,12 @@ def calcular_totales(conceptos):
     return subtotal, iva, round(subtotal + iva, 2)
 
 # ==========================================
-# CONEXIÓN BLINDADA A GOOGLE SHEETS
+# CONEXIÓN A GOOGLE SHEETS (REFRESH FIX)
 # ==========================================
 @st.cache_data(show_spinner=False, ttl=60)
 def cargar_datos_preciario():
-    if gspread is None or Credentials is None:
-        return pd.DataFrame(), "Faltan dependencias gspread o google-auth en requirements.txt."
+    if gspread is None:
+        return pd.DataFrame(), "Falta dependencia gspread en requirements.txt."
     
     if "gcp_service_account" not in st.secrets:
         return pd.DataFrame(), "No se encontraron credenciales gcp_service_account en los secrets."
@@ -175,11 +171,10 @@ def cargar_datos_preciario():
         if "private_key" in info and isinstance(info["private_key"], str):
             info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
             
-        scopes = ["[https://www.googleapis.com/auth/spreadsheets.readonly](https://www.googleapis.com/auth/spreadsheets.readonly)"]
-        creds = Credentials.from_service_account_info(info, scopes=scopes)
-        gc = gspread.authorize(creds)
+        # NATIVO DE GSPREAD PARA SOLUCIONAR REFRESH ERROR
+        gc = gspread.service_account_from_dict(info)
         
-        url_respaldo = "[https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit](https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit)"
+        url_respaldo = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
         url = st.secrets.get("PRECIARIO_BESCO_URL", url_respaldo)
         worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex").strip()
         
@@ -473,7 +468,7 @@ def render_captura_conceptos():
                 
             if error or df_preciario.empty:
                 st.error(f"❌ Error al conectar con Google Sheets:\n\n{error}")
-                st.info("Asegúrate de presionar 'Reboot app' en Streamlit para limpiar la caché.")
+                st.info("Asegúrate de presionar 'Reboot app' en Streamlit para limpiar el token fallido de la caché.")
             else:
                 st.success("✅ Preciario vinculado y cargado exitosamente.")
                 cols = list(df_preciario.columns)
