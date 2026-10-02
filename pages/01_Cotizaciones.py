@@ -1,5 +1,6 @@
 import os
 import re
+import traceback
 from datetime import date
 
 import pandas as pd
@@ -152,9 +153,9 @@ def calcular_totales(conceptos):
     return subtotal, iva, round(subtotal + iva, 2)
 
 # ==========================================
-# CONEXIÓN A GOOGLE SHEETS
+# CONEXIÓN BLINDADA A GOOGLE SHEETS
 # ==========================================
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=60)
 def cargar_datos_preciario():
     if gspread is None or Credentials is None:
         return pd.DataFrame(), "Faltan dependencias gspread o google-auth en requirements.txt."
@@ -171,18 +172,25 @@ def cargar_datos_preciario():
         creds = Credentials.from_service_account_info(info, scopes=scopes)
         gc = gspread.authorize(creds)
         
-        # Obtener URL y Pestaña de los secrets
-        url = st.secrets.get("PRECIARIO_BESCO_URL", "")
-        worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex")
-        
-        if not url: return pd.DataFrame(), "No se encontró PRECIARIO_BESCO_URL en secrets."
+        # URL de respaldo duro en caso de que el secret esté vacío
+        url_respaldo = "https://docs.google.com/spreadsheets/d/12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM/edit"
+        url = st.secrets.get("PRECIARIO_BESCO_URL", url_respaldo)
+        worksheet_name = st.secrets.get("PRECIARIO_BESCO_WORKSHEET", "Preciario Sodexo Banamex").strip()
         
         spreadsheet = gc.open_by_url(url)
-        ws = spreadsheet.worksheet(worksheet_name)
+        
+        # FAILSAFE: Intenta abrir por nombre exacto, si falla (por espacios, etc), abre la primera hoja (index 0)
+        try:
+            ws = spreadsheet.worksheet(worksheet_name)
+        except Exception:
+            ws = spreadsheet.get_worksheet(0)
+            
         records = ws.get_all_records()
         return pd.DataFrame(records), ""
+        
     except Exception as e:
-        return pd.DataFrame(), f"Error al leer la hoja: {str(e)}"
+        # Extraemos el error completo usando repr en lugar de str para que nunca quede en blanco
+        return pd.DataFrame(), f"Error técnico ({type(e).__name__}): {repr(e)}"
 
 # ==========================================
 # GENERACIÓN DE PDF (FPDF)
@@ -429,7 +437,6 @@ def render_modulo_apu():
 def render_captura_conceptos():
     st.markdown("## 2. Captura de Conceptos")
     
-    # RADIO BUTTON PARA SELECCIONAR MODALIDAD
     modo = st.radio(
         "Selecciona la Modalidad de Captura:", 
         ["✍️ Captura Manual", "📊 Preciario Google Sheets", "🛠️ Análisis APU"], 
@@ -461,13 +468,12 @@ def render_captura_conceptos():
                 df_preciario, error = cargar_datos_preciario()
                 
             if error or df_preciario.empty:
-                st.error(f"❌ Error al conectar con Google Sheets: {error}")
-                st.info("Revisa tus secretos y asegúrate que la API esté habilitada y compartida.")
+                st.error(f"❌ Error al conectar con Google Sheets: \n\n{error}")
+                st.info("Revisa tus secretos y asegúrate de haber reiniciado tu aplicación (Reboot app).")
             else:
                 st.success("✅ Preciario vinculado y cargado exitosamente.")
                 cols = list(df_preciario.columns)
                 
-                # Coincidir con las columnas de tu imagen de Preciario Sodexo Banamex
                 col_clave = next((c for c in cols if str(c).upper() in ["ITEM", "CLAVE", "CODIGO"]), cols[0])
                 col_desc = next((c for c in cols if str(c).upper() in ["CONCEPTO", "DESCRIPCION"]), cols[1] if len(cols)>1 else cols[0])
                 col_unidad = next((c for c in cols if str(c).upper() in ["UNIDAD", "UOM", "UM"]), cols[2] if len(cols)>2 else cols[0])
@@ -560,7 +566,7 @@ def render_generacion(subtotal, iva, total):
             )
             folio_str = st.session_state.datos_cotizacion['folio'] or "S-N"
             st.download_button(
-                label="⬇️ Descargar PDF", data=pdf_bytes, file_name=f"Cotizacion_{folio_str}.pdf",
+                label="⬇️️ Descargar PDF", data=pdf_bytes, file_name=f"Cotizacion_{folio_str}.pdf",
                 mime="application/pdf", use_container_width=True
             )
             
