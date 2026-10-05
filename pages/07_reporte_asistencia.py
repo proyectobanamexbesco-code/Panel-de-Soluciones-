@@ -72,12 +72,12 @@ with col2:
 
 with col3:
     persona_reporta = st.text_input(
-        "✍️ Persona que reporta / Valida:",
+        "✍️️ Persona que reporta / Valida:",
         placeholder="Ej. Ing. Gerardo Méndez"
     )
 
-# ID del libro configurado en tus Secrets
-spreadsheet_id = st.secrets.get("SPREADSHEET_ID", "12Hehx2g0vZNS0FmXMeBlcF9JRstS2CZnVknItFjI7sM")
+# ID del libro vinculado a tu nueva base de datos
+spreadsheet_id = st.secrets.get("SPREADSHEET_ID", "1qcvjwgbiSoCX0uvZSEv_qxlmHyrZ22B-knQGHwmkNRU")
 
 df_personal = cargar_personal_desde_sheets(spreadsheet_id)
 
