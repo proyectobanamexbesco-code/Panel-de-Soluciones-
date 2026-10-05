@@ -1,4 +1,5 @@
 import os
+import io
 import tempfile
 import smtplib
 import textwrap
@@ -12,6 +13,14 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
+
+try:
+    from googleapiclient.discovery import build
+    from google.oauth2.service_account import Credentials
+    import googleapiclient.http
+except Exception:
+    build = None
+    Credentials = None
 
 
 # =========================================================
@@ -322,6 +331,61 @@ def aplicar_estilos():
 
 
 # =========================================================
+# INTEGRACIÓN CON GOOGLE DRIVE (EXTRACCIÓN AUTOMÁTICA)
+# =========================================================
+def obtener_cliente_drive():
+    if Credentials is None or build is None:
+        return None
+    try:
+        scopes = ["https://www.googleapis.com/auth/drive"]
+        if "gcp_service_account" not in st.secrets:
+            return None
+        info = dict(st.secrets["gcp_service_account"])
+        if "private_key" in info and isinstance(info["private_key"], str):
+            info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
+        creds = Credentials.from_service_account_info(info, scopes=scopes)
+        return build('drive', 'v3', credentials=creds)
+    except Exception:
+        return None
+
+def listar_fotos_desde_drive(folio_busqueda):
+    try:
+        service = obtener_cliente_drive()
+        if not service or "google_config" not in st.secrets:
+            return []
+        id_carpeta_raiz = st.secrets["google_config"]["id_carpeta_raiz_drive"]
+        
+        query = f"'{id_carpeta_raiz}' in parents and mimeType contains 'image/' and trashed = false"
+        if folio_busqueda:
+            query += f" and name contains '{folio_busqueda}'"
+
+        results = service.files().list(
+            q=query,
+            pageSize=50,
+            fields="files(id, name, thumbnailLink)"
+        ).execute()
+        return results.get('files', [])
+    except Exception:
+        return []
+
+def descargar_imagen_drive_a_bytes(file_id):
+    try:
+        service = obtener_cliente_drive()
+        if not service:
+            return None
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = googleapiclient.http.MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        fh.seek(0)
+        return fh.read()
+    except Exception:
+        return None
+
+
+# =========================================================
 # UTILIDADES
 # =========================================================
 def normalizar_texto(texto):
@@ -331,30 +395,11 @@ def normalizar_texto(texto):
     valor = str(texto)
 
     reemplazos = {
-        "á": "a",
-        "é": "e",
-        "í": "i",
-        "ó": "o",
-        "ú": "u",
-        "Á": "A",
-        "É": "E",
-        "Í": "I",
-        "Ó": "O",
-        "Ú": "U",
-        "ñ": "n",
-        "Ñ": "N",
-        "ü": "u",
-        "Ü": "U",
-        "•": "-",
-        "\u201c": '"',
-        "\u201d": '"',
-        "\u2018": "'",
-        "\u2019": "'",
-        "\u2013": "-",
-        "\u2014": "-",
-        "\u200b": "",
-        "\r": "",
-        "°": " grados",
+        "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
+        "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U",
+        "ñ": "n", "Ñ": "N", "ü": "u", "Ü": "U", "•": "-",
+        "\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'",
+        "\u2013": "-", "\u2014": "-", "\u200b": "", "\r": "", "°": " grados",
     }
 
     for original, nuevo in reemplazos.items():
@@ -365,14 +410,12 @@ def normalizar_texto(texto):
 
 def crear_nombre_archivo(nombre):
     valor = normalizar_texto(nombre)
-
     invalidos = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", "(", ")", "&"]
 
     for caracter in invalidos:
         valor = valor.replace(caracter, "_")
 
     valor = valor.replace(" ", "_")
-
     return valor
 
 
@@ -471,7 +514,6 @@ def encabezado_pdf(c, titulo):
     title_y = 750
     line_y = 680
     title_x = MARGIN_LEFT
-
     logo_temp = None
 
     if existe_logo_besco():
@@ -480,14 +522,10 @@ def encabezado_pdf(c, titulo):
             logo_reader = ImageReader(logo_temp)
             logo_w, logo_h = logo_reader.getSize()
 
-            # Logo aumentado 85%
-            # Antes aproximado: 115 x 45
-            # Ahora aproximado: 213 x 83
             logo_max_w = 213
             logo_max_h = 83
 
             ratio = min(logo_max_w / logo_w, logo_max_h / logo_h)
-
             draw_w = logo_w * ratio
             draw_h = logo_h * ratio
 
@@ -503,12 +541,9 @@ def encabezado_pdf(c, titulo):
                 preserveAspectRatio=True,
                 mask="auto"
             )
-
             title_x = MARGIN_LEFT + 235
-
         except Exception:
             title_x = MARGIN_LEFT
-
         finally:
             if logo_temp and os.path.exists(logo_temp):
                 try:
@@ -524,7 +559,6 @@ def encabezado_pdf(c, titulo):
     c.setFont("Helvetica", 9)
 
     fecha_generado = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
     c.drawString(
         title_x,
         title_y - 18,
@@ -546,19 +580,15 @@ def nueva_pagina(c, y, espacio=120):
     if y < espacio:
         c.showPage()
         y = encabezado_pdf(c, "REPORTE FOTOGRAFICO - CONTINUACION")
-
     return y
 
 
 def titulo_seccion(c, titulo, y):
     y = nueva_pagina(c, y, 80)
-
     c.setFont("Helvetica-Bold", 13)
     c.setFillColor(colors.HexColor("#1E3A5F"))
     c.drawString(MARGIN_LEFT, y, normalizar_texto(titulo))
-
     y -= 18
-
     return y
 
 
@@ -574,13 +604,11 @@ def linea_pdf(c, etiqueta, valor, y):
     c.drawString(MARGIN_LEFT + 125, y, normalizar_texto(valor))
 
     y -= 15
-
     return y
 
 
 def bloque_texto_pdf(c, titulo, texto, y):
     y = titulo_seccion(c, titulo, y)
-
     c.setFont("Helvetica", 9)
     c.setFillColor(colors.black)
 
@@ -590,13 +618,11 @@ def bloque_texto_pdf(c, titulo, texto, y):
         y -= 13
 
     y -= 10
-
     return y
 
 
 def dibujar_imagen_en_celda(c, uploaded_file, x, y, ancho, alto):
     temp_path = None
-
     try:
         temp_path = comprimir_imagen_a_temp(uploaded_file)
         img_reader = ImageReader(temp_path)
@@ -619,7 +645,6 @@ def dibujar_imagen_en_celda(c, uploaded_file, x, y, ancho, alto):
             preserveAspectRatio=True,
             mask="auto"
         )
-
     except Exception:
         c.setStrokeColor(colors.HexColor("#B8C2CC"))
         c.setFillColor(colors.HexColor("#F4F6F8"))
@@ -627,7 +652,6 @@ def dibujar_imagen_en_celda(c, uploaded_file, x, y, ancho, alto):
         c.setFillColor(colors.HexColor("#667085"))
         c.setFont("Helvetica", 8)
         c.drawCentredString(x + ancho / 2, y + alto / 2, "Error imagen")
-
     finally:
         if temp_path and os.path.exists(temp_path):
             try:
@@ -670,7 +694,6 @@ def fila_dos_fotos_pdf(c, titulo_izq, archivo_izq, titulo_der, archivo_der, y):
         dibujar_imagen_en_celda(c, archivo_der, x_der, y_img, ancho_celda, alto_img)
 
     y = y_img - 18
-
     return y
 
 
@@ -800,7 +823,6 @@ def crear_pdf(
     )
 
     c.save()
-
     return pdf_path
 
 
@@ -826,7 +848,6 @@ def enviar_correo(
         password = st.secrets["EMAIL_PASSWORD"]
 
         extras = []
-
         if correos_extra:
             extras = [
                 correo.strip()
@@ -904,7 +925,7 @@ def main():
         """
         <div class="titulo">📷 Reporte Fotografico por Contrato</div>
         <div class="subtitulo">
-            Reporte configurable por contrato, alcance, evidencias, PDF y correo.
+            Reporte configurable por contrato, alcance, evidencias desde nube (Drive), PDF y correo.
         </div>
         """,
         unsafe_allow_html=True
@@ -924,7 +945,7 @@ def main():
     st.markdown(
         """
         <div class="info-box">
-            Version ligera para celular. Todas las fotos son opcionales.
+            Versión para celular con selector dual de fotos (Dispositivo local o Google Drive por Folio).
             En el PDF se acomodan dos fotos por fila y solo se muestran los segmentos que tengan fotografias.
         </div>
         """,
@@ -965,18 +986,25 @@ def main():
 
     st.divider()
 
-    st.subheader("2. Alcance del contrato")
+    st.subheader("2. Alcance del contrato y Evidencias")
 
-    st.markdown(
-        f"""
-        <div class="info-box">
-            <strong>Contrato seleccionado:</strong> {contrato}<br>
-            <strong>Renglones del alcance:</strong> {len(alcance_items)}<br>
-            Todas las evidencias fotograficas son opcionales.
-        </div>
-        """,
-        unsafe_allow_html=True
+    # Selector global de origen de fotos para facilitar el flujo en campo
+    origen_evidencias = st.radio(
+        "Origen de las Fotografías:",
+        ["📁 Carga Local / Dispositivo", "☁️ Sincronizar desde Google Drive (Carpeta del Folio)"],
+        horizontal=True
     )
+
+    archivos_drive_cache = []
+    if origen_evidencias == "☁️ Sincronizar desde Google Drive (Carpeta del Folio)":
+        st.info(f"Buscando evidencias en Google Drive vinculadas al Folio: **{folio if folio else 'General'}**")
+        if st.button("🔄 Actualizar lista de Drive"):
+            st.rerun()
+        archivos_drive_cache = listar_fotos_desde_drive(folio)
+        if archivos_drive_cache:
+            st.success(f"Se encontraron {len(archivos_drive_cache)} imágenes en la nube.")
+        else:
+            st.warning("No se encontraron imágenes en la nube con este Folio. Puedes cambiar a carga local si lo prefieres.")
 
     evidencias_por_item = {}
 
@@ -991,9 +1019,7 @@ def main():
             st.markdown(
                 """
                 <div class="optional-box">
-                    Fotos opcionales: puedes cargar hasta 2 fotos antes y 2 fotos despues.
-                    En el PDF se mostraran dos fotos por fila.
-                    Si este segmento no tiene fotos, no aparecera en el apartado fotografico del PDF.
+                    Fotos opcionales: puedes asignar hasta 2 fotos antes y 2 fotos despues.
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -1009,29 +1035,47 @@ def main():
                 unsafe_allow_html=True
             )
 
-            antes_1 = st.file_uploader(
-                f"{momento} - Antes 1 opcional",
-                type=["jpg", "jpeg", "png"],
-                key=f"{contrato}_{numero}_antes_1"
-            )
+            antes_1, antes_2, despues_1, despues_2 = None, None, None, None
 
-            antes_2 = st.file_uploader(
-                f"{momento} - Antes 2 opcional",
-                type=["jpg", "jpeg", "png"],
-                key=f"{contrato}_{numero}_antes_2"
-            )
+            if origen_evidencias == "📁 Carga Local / Dispositivo":
+                antes_1 = st.file_uploader(f"{momento} - Antes 1 opcional", type=["jpg", "jpeg", "png"], key=f"{contrato}_{numero}_antes_1")
+                antes_2 = st.file_uploader(f"{momento} - Antes 2 opcional", type=["jpg", "jpeg", "png"], key=f"{contrato}_{numero}_antes_2")
+                despues_1 = st.file_uploader(f"{momento} - Despues 1 opcional", type=["jpg", "jpeg", "png"], key=f"{contrato}_{numero}_despues_1")
+                despues_2 = st.file_uploader(f"{momento} - Despues 2 opcional", type=["jpg", "jpeg", "png"], key=f"{contrato}_{numero}_despues_2")
+            else:
+                nombres_disponibles = [f['name'] for f in archivos_drive_cache]
+                
+                sel_a1 = st.selectbox(f"{momento} - Antes 1 (Drive)", options=["-- Seleccionar --"] + nombres_disponibles, key=f"{contrato}_{numero}_drv_a1")
+                if sel_a1 != "-- Seleccionar --":
+                    match = next((f for f in archivos_drive_cache if f['name'] == sel_a1), None)
+                    if match:
+                        bytes_img = descargar_imagen_drive_a_bytes(match['id'])
+                        if bytes_img:
+                            antes_1 = io.BytesIO(bytes_img)
 
-            despues_1 = st.file_uploader(
-                f"{momento} - Despues 1 opcional",
-                type=["jpg", "jpeg", "png"],
-                key=f"{contrato}_{numero}_despues_1"
-            )
+                sel_a2 = st.selectbox(f"{momento} - Antes 2 (Drive)", options=["-- Seleccionar --"] + nombres_disponibles, key=f"{contrato}_{numero}_drv_a2")
+                if sel_a2 != "-- Seleccionar --":
+                    match = next((f for f in archivos_drive_cache if f['name'] == sel_a2), None)
+                    if match:
+                        bytes_img = descargar_imagen_drive_a_bytes(match['id'])
+                        if bytes_img:
+                            antes_2 = io.BytesIO(bytes_img)
 
-            despues_2 = st.file_uploader(
-                f"{momento} - Despues 2 opcional",
-                type=["jpg", "jpeg", "png"],
-                key=f"{contrato}_{numero}_despues_2"
-            )
+                sel_d1 = st.selectbox(f"{momento} - Despues 1 (Drive)", options=["-- Seleccionar --"] + nombres_disponibles, key=f"{contrato}_{numero}_drv_d1")
+                if sel_d1 != "-- Seleccionar --":
+                    match = next((f for f in archivos_drive_cache if f['name'] == sel_d1), None)
+                    if match:
+                        bytes_img = descargar_imagen_drive_a_bytes(match['id'])
+                        if bytes_img:
+                            despues_1 = io.BytesIO(bytes_img)
+
+                sel_d2 = st.selectbox(f"{momento} - Despues 2 (Drive)", options=["-- Seleccionar --"] + nombres_disponibles, key=f"{contrato}_{numero}_drv_d2")
+                if sel_d2 != "-- Seleccionar --":
+                    match = next((f for f in archivos_drive_cache if f['name'] == sel_d2), None)
+                    if match:
+                        bytes_img = descargar_imagen_drive_a_bytes(match['id'])
+                        if bytes_img:
+                            despues_2 = io.BytesIO(bytes_img)
 
             evidencias_por_item[numero] = {
                 "antes_1": antes_1,
@@ -1040,21 +1084,8 @@ def main():
                 "despues_2": despues_2,
             }
 
-            cargadas = 0
-
-            if antes_1:
-                cargadas += 1
-
-            if antes_2:
-                cargadas += 1
-
-            if despues_1:
-                cargadas += 1
-
-            if despues_2:
-                cargadas += 1
-
-            st.info(f"Fotos cargadas en este renglon: {cargadas} de 4 opcionales.")
+            cargadas = sum([1 for x in [antes_1, antes_2, despues_1, despues_2] if x is not None])
+            st.info(f"Fotos seleccionadas en este renglon: {cargadas} de 4 opcionales.")
 
     st.divider()
 
