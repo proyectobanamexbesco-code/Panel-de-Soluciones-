@@ -39,7 +39,7 @@ def init_gspread_client():
         st.error(f"❌ Error de autenticación en init_gspread_client: {type(e).__name__} - {str(e)}")
         return None
 
-@st.cache_data(ttl=60) # Tiempo de caché reducido para refrescar la lista de asistencia más rápido
+@st.cache_data(ttl=60) # Tiempo de caché reducido para refrescar la lista
 def cargar_personal_desde_sheets(spreadsheet_id):
     """Obtiene los datos y el objeto worksheet de la primera pestaña."""
     gc = init_gspread_client()
@@ -88,10 +88,10 @@ if not df_personal.empty:
     # Rellenar datos vacíos para evitar fallos de lectura en Streamlit
     df_personal = df_personal.fillna("")
     
-    # Formatear la fecha para que empate con el encabezado de tu Google Sheets (ej: 1/8/2026)
+    # Formatear la fecha para que empate con el encabezado de tu Google Sheets (ej: 5/10/2026)
     col_fecha = f"{fecha_registro.day}/{fecha_registro.month}/{fecha_registro.year}"
     
-    # Si la columna de ese día aún no existe en el registro general, la agregamos al dataframe
+    # Si la columna de ese día aún no existe en el registro general, la agregamos
     if col_fecha not in df_personal.columns:
         df_personal[col_fecha] = ""
 
@@ -106,22 +106,28 @@ if not df_personal.empty:
     else:
         st.markdown(f"### Personal asignado — **{sitio_seleccionado}** ({col_fecha})")
         
-        # Opciones para rellenar
+        # Opciones para la lista desplegable
         estatus_opciones = ["", "Asistencia", "Falta", "Vacaciones", "Incapacidad", "Descanso"]
+        columnas_fijas = ["No_Empleado", "Nombre Completo", "Fecha de ingreso", "SITE", "PUESTO", "MES"]
         
-        # Convertimos la columna del día específico en una lista desplegable
-        column_config = {
-            col_fecha: st.column_config.SelectboxColumn(
-                f"Registro del día {col_fecha}",
-                options=estatus_opciones,
-                width="medium"
-            )
-        }
+        # Configuración dinámica de columnas
+        configuracion_columnas = {}
+        for col in df_sitio.columns:
+            if col in columnas_fijas:
+                # Bloquear edición de datos fijos del empleado
+                configuracion_columnas[col] = st.column_config.TextColumn(col, disabled=True)
+            else:
+                # Convertir cualquier columna de fecha en lista desplegable
+                configuracion_columnas[col] = st.column_config.SelectboxColumn(
+                    col,
+                    options=estatus_opciones,
+                    width="small"
+                )
 
         # Desplegar la cuadrícula de asistencia
         df_editado = st.data_editor(
             df_sitio,
-            column_config=column_config,
+            column_config=configuracion_columnas,
             use_container_width=True,
             hide_index=True,
             key=f"editor_{sitio_seleccionado}"
@@ -133,15 +139,12 @@ if not df_personal.empty:
             else:
                 with st.spinner("Guardando registro en la plantilla mensual..."):
                     try:
-                        # Identificador único (se recomienda usar No_Empleado)
                         col_id = "No_Empleado" if "No_Empleado" in df_personal.columns else df_personal.columns[0]
                         
-                        # 1. Empatar y actualizar los datos modificados del grid filtrado hacia el Dataframe General
+                        # 1. Actualizar los datos modificados del grid filtrado hacia el Dataframe General
                         for idx, row in df_editado.iterrows():
-                            # Encontrar la fila equivalente en df_personal
                             match_idx = df_personal[df_personal[col_id] == row[col_id]].index
                             if not match_idx.empty:
-                                # Sobreescribir el valor de la fecha seleccionada
                                 df_personal.loc[match_idx[0], col_fecha] = row[col_fecha]
                         
                         # 2. Transformar el dataframe completo a formato de lista para Google Sheets
@@ -151,7 +154,7 @@ if not df_personal.empty:
                         worksheet.clear()
                         worksheet.update(values=datos_a_subir, range_name="A1")
                         
-                        # Refrescar memoria caché de Streamlit para que al recargar se lean los datos actuales
+                        # Refrescar memoria caché
                         st.cache_data.clear()
                         st.success(f"¡Asistencia de **{sitio_seleccionado}** para el **{col_fecha}** registrada exitosamente!")
                         
