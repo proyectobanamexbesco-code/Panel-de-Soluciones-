@@ -20,7 +20,7 @@ def init_gspread_client():
     ]
     
     try:
-        # Modificación clave: Buscar gcp_service_account para no afectar tus otras apps del portal
+        # Se busca la configuración de Google (sin alterar otros módulos)
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
         elif "google_credentials" in st.secrets:
@@ -29,7 +29,7 @@ def init_gspread_client():
             st.error("❌ No se encontraron credenciales de Google en st.secrets.")
             return None
         
-        # Sanitizar saltos de línea en la llave privada PEM
+        # Sanitizar saltos de línea
         if "\\n" in creds_dict["private_key"]:
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
             
@@ -39,21 +39,21 @@ def init_gspread_client():
         st.error(f"❌ Error de autenticación en init_gspread_client: {type(e).__name__} - {str(e)}")
         return None
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60) # Tiempo de caché reducido para refrescar la lista de asistencia más rápido
 def cargar_personal_desde_sheets(spreadsheet_id):
-    """Obtiene los datos del personal cargados en la primera pestaña del libro."""
+    """Obtiene los datos y el objeto worksheet de la primera pestaña."""
     gc = init_gspread_client()
     if not gc:
-        return pd.DataFrame()
+        return pd.DataFrame(), None
     
     try:
         sh = gc.open_by_key(spreadsheet_id)
-        worksheet = sh.get_worksheet(0)  # Lee la primera pestaña de la plantilla
+        worksheet = sh.get_worksheet(0)  # Lee la primera pestaña 
         datos = worksheet.get_all_records()
-        return pd.DataFrame(datos)
+        return pd.DataFrame(datos), worksheet
     except Exception as e:
         st.error(f"❌ Error al leer la lista de personal de Google Sheets: {type(e).__name__} - {str(e)}")
-        return pd.DataFrame()
+        return pd.DataFrame(), None
 
 # --- INTERFAZ PRINCIPAL ---
 st.title("📋 Control de Asistencia por Sitio")
@@ -79,13 +79,23 @@ with col3:
         placeholder="Ej. Ing. Gerardo Méndez"
     )
 
-# ID EXACTO DE TU HOJA DE ASISTENCIA (Hardcodeado para no depender de variables externas)
+# ID EXACTO DE TU HOJA DE ASISTENCIA
 spreadsheet_id = "1qcvjwgbiSoCX0uvZSEv_qxlmHyrZ22B-knQGHwmkNRU"
 
-df_personal = cargar_personal_desde_sheets(spreadsheet_id)
+df_personal, worksheet = cargar_personal_desde_sheets(spreadsheet_id)
 
 if not df_personal.empty:
-    # Filtrar por la columna SITE si existe
+    # Rellenar datos vacíos para evitar fallos de lectura en Streamlit
+    df_personal = df_personal.fillna("")
+    
+    # Formatear la fecha para que empate con el encabezado de tu Google Sheets (ej: 1/8/2026)
+    col_fecha = f"{fecha_registro.day}/{fecha_registro.month}/{fecha_registro.year}"
+    
+    # Si la columna de ese día aún no existe en el registro general, la agregamos al dataframe
+    if col_fecha not in df_personal.columns:
+        df_personal[col_fecha] = ""
+
+    # Filtrar por la columna SITE
     if "SITE" in df_personal.columns:
         df_sitio = df_personal[df_personal["SITE"] == sitio_seleccionado].copy()
     else:
@@ -94,25 +104,24 @@ if not df_personal.empty:
     if df_sitio.empty:
         st.warning(f"No se encontró personal asignado al sitio **{sitio_seleccionado}**.")
     else:
-        st.markdown(f"### Personal asignado — **{sitio_seleccionado}** ({fecha_registro.strftime('%d/%m/%Y')})")
+        st.markdown(f"### Personal asignado — **{sitio_seleccionado}** ({col_fecha})")
         
-        estatus_opciones = ["Asistencia", "Falta", "Incapacidad", "Vacaciones", "Permiso"]
+        # Opciones para rellenar
+        estatus_opciones = ["", "Asistencia", "Falta", "Vacaciones", "Incapacidad", "Descanso"]
         
-        if "Estatus" not in df_sitio.columns:
-            df_sitio["Estatus"] = "Asistencia"
-        if "Observaciones" not in df_sitio.columns:
-            df_sitio["Observaciones"] = ""
+        # Convertimos la columna del día específico en una lista desplegable
+        column_config = {
+            col_fecha: st.column_config.SelectboxColumn(
+                f"Registro del día {col_fecha}",
+                options=estatus_opciones,
+                width="medium"
+            )
+        }
 
+        # Desplegar la cuadrícula de asistencia
         df_editado = st.data_editor(
             df_sitio,
-            column_config={
-                "Estatus": st.column_config.SelectboxColumn(
-                    "Estatus de Asistencia",
-                    options=estatus_opciones,
-                    required=True
-                ),
-                "Observaciones": st.column_config.TextColumn("Observaciones", width="large")
-            },
+            column_config=column_config,
             use_container_width=True,
             hide_index=True,
             key=f"editor_{sitio_seleccionado}"
@@ -122,33 +131,29 @@ if not df_personal.empty:
             if not persona_reporta.strip():
                 st.error("⚠️ Ingrese el nombre de la persona que valida antes de guardar.")
             else:
-                gc = init_gspread_client()
-                if gc:
+                with st.spinner("Guardando registro en la plantilla mensual..."):
                     try:
-                        sh = gc.open_by_key(spreadsheet_id)
+                        # Identificador único (se recomienda usar No_Empleado)
+                        col_id = "No_Empleado" if "No_Empleado" in df_personal.columns else df_personal.columns[0]
                         
-                        # Intenta abrir la pestaña 'Historial_Asistencia' o la crea automáticamente
-                        try:
-                            ws_historial = sh.worksheet("Historial_Asistencia")
-                        except gspread.exceptions.WorksheetNotFound:
-                            ws_historial = sh.add_worksheet(title="Historial_Asistencia", rows="1000", cols="10")
-                            ws_historial.append_row(["Fecha", "SITE", "No_Empleado", "Nombre", "Puesto", "Estatus", "Observaciones", "Reportado_Por"])
-
-                        # Construcción de filas a enviar a Sheets
-                        filas_a_insertar = []
-                        for _, row in df_editado.iterrows():
-                            filas_a_insertar.append([
-                                fecha_registro.strftime("%Y-%m-%d"),
-                                sitio_seleccionado,
-                                str(row.get("No_Empleado", "")),
-                                str(row.get("Nombre Completo", row.get("Nombre", ""))),
-                                str(row.get("PUESTO", row.get("Puesto", ""))),
-                                str(row.get("Estatus", "Asistencia")),
-                                str(row.get("Observaciones", "")),
-                                persona_reporta.strip()
-                            ])
-                            
-                        ws_historial.append_rows(filas_a_insertar)
-                        st.success(f"¡Asistencia de **{sitio_seleccionado}** registrada exitosamente en Google Sheets!")
+                        # 1. Empatar y actualizar los datos modificados del grid filtrado hacia el Dataframe General
+                        for idx, row in df_editado.iterrows():
+                            # Encontrar la fila equivalente en df_personal
+                            match_idx = df_personal[df_personal[col_id] == row[col_id]].index
+                            if not match_idx.empty:
+                                # Sobreescribir el valor de la fecha seleccionada
+                                df_personal.loc[match_idx[0], col_fecha] = row[col_fecha]
+                        
+                        # 2. Transformar el dataframe completo a formato de lista para Google Sheets
+                        datos_a_subir = [df_personal.columns.values.tolist()] + df_personal.astype(str).values.tolist()
+                        
+                        # 3. Limpiar la primera pestaña y cargar el Dataframe actualizado
+                        worksheet.clear()
+                        worksheet.update(values=datos_a_subir, range_name="A1")
+                        
+                        # Refrescar memoria caché de Streamlit para que al recargar se lean los datos actuales
+                        st.cache_data.clear()
+                        st.success(f"¡Asistencia de **{sitio_seleccionado}** para el **{col_fecha}** registrada exitosamente!")
+                        
                     except Exception as e:
                         st.error(f"Error al escribir en Google Sheets: {type(e).__name__} - {str(e)}")
