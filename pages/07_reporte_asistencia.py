@@ -20,11 +20,14 @@ def init_gspread_client():
     ]
     
     try:
-        if "google_credentials" not in st.secrets:
-            st.error("❌ No se encontró la sección [google_credentials] en st.secrets.")
+        # Modificación clave: Buscar gcp_service_account para no afectar tus otras apps del portal
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+        elif "google_credentials" in st.secrets:
+            creds_dict = dict(st.secrets["google_credentials"])
+        else:
+            st.error("❌ No se encontraron credenciales de Google en st.secrets.")
             return None
-
-        creds_dict = dict(st.secrets["google_credentials"])
         
         # Sanitizar saltos de línea en la llave privada PEM
         if "\\n" in creds_dict["private_key"]:
@@ -72,12 +75,12 @@ with col2:
 
 with col3:
     persona_reporta = st.text_input(
-        "✍️️ Persona que reporta / Valida:",
+        "✍️ Persona que reporta / Valida:",
         placeholder="Ej. Ing. Gerardo Méndez"
     )
 
-# ID del libro vinculado a tu nueva base de datos
-spreadsheet_id = st.secrets.get("SPREADSHEET_ID", "1qcvjwgbiSoCX0uvZSEv_qxlmHyrZ22B-knQGHwmkNRU")
+# ID EXACTO DE TU HOJA DE ASISTENCIA (Hardcodeado para no depender de variables externas)
+spreadsheet_id = "1qcvjwgbiSoCX0uvZSEv_qxlmHyrZ22B-knQGHwmkNRU"
 
 df_personal = cargar_personal_desde_sheets(spreadsheet_id)
 
