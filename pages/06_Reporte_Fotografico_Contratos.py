@@ -935,4 +935,406 @@ def generar_pdf(
         writer.write(out)
         pdf_bytes = out.getvalue()
 
-    return pdf_bytes, f_ej
+    return pdf_bytes, f_ejec_str
+
+# =========================================================
+# DATOS FIJOS
+# =========================================================
+LISTA_OFICINAS = [
+    "Acapulco",
+    "Toluca",
+    "Pachuca",
+    "Michoacán",
+    "Zonas/ CDMX",
+    "CDMX",
+    "Ben & Company",
+    "BX+",
+    "Emerson",
+    "Odoo",
+    "Tampico",
+    "Telmex",
+    "Guadalajara",
+    "Colima",
+    "Tepic",
+]
+
+MAPEO_CORREOS = {
+    "Acapulco": [
+        "itzallana.vazquez@besco.mx",
+        "gerardo.fuentes@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Toluca": [
+        "policarpo.rosaliano@besco.mx",
+        "monica.iniestra@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Pachuca": [
+        "zaida.dominguez@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Michoacán": [
+        "cristobal.rodriguez@besco.mx",
+        "ximena.acosta@besco.mx",
+        "javier.zamano@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Zonas/ CDMX": [
+        "gerardo.mendez@besco.mx",
+        "rene.munoz@besco.mx",
+        "andres.mayagoitia@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "CDMX": [
+        "gerardo.mendez@besco.mx",
+        "alejandro.ramirez@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Ben & Company": [
+        "gerardo.mendez@besco.mx",
+        "alejandro.ramirez@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "BX+": [
+        "gerardo.mendez@besco.mx",
+        "alejandro.ramirez@besco.mx",
+        "patricia.cortes@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Emerson": [
+        "gerardo.mendez@besco.mx",
+        "alejandro.ramirez@besco.mx",
+        "patricia.cortes@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Odoo": [
+        "gerardo.mendez@besco.mx",
+        "alejandro.ramirez@besco.mx",
+        "dorian.rodriguez@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Tampico": [
+        "ingrid.lucio@besco.mx",
+        "joel.perez@besco.mx",
+        "gerardo.mendez@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Telmex": [
+        "juan.perez@besco.mx",
+        "dario.vargas@besco.mx",
+        "gerardo.mendez@besco.mx",
+        "sarai.martinez@besco.mx",
+    ],
+    "Guadalajara": [
+        "erika.martinez@besco.mx",
+        "dulce.brito@besco.mx",
+    ],
+    "Colima": [
+        "erika.martinez@besco.mx",
+        "dulce.brito@besco.mx",
+    ],
+    "Tepic": [
+        "erika.martinez@besco.mx",
+        "dulce.brito@besco.mx",
+    ],
+}
+
+LEYENDAS_DEFAULT = {
+    "Conservación": (
+        "SE REALIZA REAPRIETE DE TORNILLERIA Y LUBRICACION DE CHAPAS, "
+        "BISAGRAS, SE HACE REVISION DE ESTADO DE PINTURA, PISOS, "
+        "EXTINTORES Y MOBILIARIO."
+    ),
+    "Hidrosanitario": (
+        "SE REALIZA REVISION DE CESPOL, MEZCLADORA, MANGUERAS, LLAVES, "
+        "WC, DESPACHADORES, EXTRACTORES Y CONEXIONES, SE DEJA FUNCIONANDO "
+        "CORRECTAMENTE."
+    ),
+    "Tableros Eléctricos": (
+        "SE REALIZA LIMPIEZA, REAPRIETE DE TORNILLERIA, TOMA DE AMPERAJES "
+        "Y VOLTAJES, SE DEJA FUNCIONANDO CORRECTAMENTE."
+    ),
+    "Iluminación": (
+        "SE REALIZA REVISION GENERAL DE LAMPARAS, SE CAMBIAN LAMPARAS "
+        "FUNDIDAS, SE DEJA FUNCIONANDO CORRECTAMENTE."
+    ),
+    "Aire Acondicionado": (
+        "SE REALIZA LIMPIEZA GENERAL DE SERPENTINES, TOMA DE PRESION DE "
+        "REFRIGERANTE, VOLTAJES, AMPERAJES, REAPRIETE DE CONEXIONES, "
+        "LIMPIEZA DE FILTROS, SE DEJA FUNCIONANDO CORRECTAMENTE."
+    ),
+}
+
+CATEGORIAS_OPCIONES = [
+    "Ninguna",
+    "Aire Acondicionado",
+    "Tableros Eléctricos",
+    "Hidroneumático",
+    "Conservación",
+    "Hidrosanitario",
+    "Iluminación",
+    "Otros",
+]
+
+# =========================================================
+# INTERFAZ PRINCIPAL
+# =========================================================
+def main():
+    aplicar_estilos_oscuros()
+
+    # Logo centrado
+    col_logo1, col_logo2, col_logo3 = st.columns([1, 1.5, 1])
+    with col_logo2:
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, use_container_width=True)
+
+    st.markdown(
+        """
+        <div class="main-title">📑 Reporte General BESCO</div>
+        <div class="subtitle">
+            Versión ligera para celular: captura datos, evidencias y genera/envía el PDF con un solo botón.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <div class="info-box">
+            Recomendación para celular: completa los campos, adjunta las evidencias necesarias y utiliza el botón al final para generar el PDF y enviarlo directamente por correo.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-title">1. Identificación General del Servicio</div>',
+        unsafe_allow_html=True
+    )
+
+    col_id1, col_id2, col_id3 = st.columns(3)
+    with col_id1:
+        cliente = st.text_input("Cliente")
+    with col_id2:
+        sucursal = st.text_input("Sucursal / Inmueble")
+    with col_id3:
+        oficina = st.selectbox("Oficina Responsable", LISTA_OFICINAS)
+
+    col_id4, col_id5, col_id6 = st.columns(3)
+    with col_id4:
+        folio = st.text_input("Folio / OT / TK", max_chars=30)
+    with col_id5:
+        fecha_ejecucion = st.date_input("Fecha de Ejecución", datetime.now())
+    with col_id6:
+        tecnico = st.text_input("Técnico Asignado")
+
+    col_id7, col_id8, col_id9 = st.columns(3)
+    with col_id7:
+        supervisor = st.text_input("Supervisor")
+    with col_id8:
+        tipo_serv = st.selectbox("Servicio", ["Preventivo", "Correctivo", "Emergencia"])
+    with col_id9:
+        referencia = st.selectbox("Referencia", ["Con Ticket", "Sin Ticket"])
+
+    st.markdown(
+        '<div class="section-title">2. Evidencia Documental</div>',
+        unsafe_allow_html=True
+    )
+
+    archivos_folio = st.file_uploader(
+        "Subir Folio BESCO",
+        type=["jpg", "jpeg", "png", "pdf"],
+        accept_multiple_files=True
+    )
+
+    mostrar_estado_fotos("Folio BESCO", archivos_folio)
+
+    st.markdown(
+        '<div class="section-title">3. Equipos a Reportar</div>',
+        unsafe_allow_html=True
+    )
+
+    num_equipos = st.number_input(
+        "¿Cuántos equipos se atendieron?",
+        min_value=1,
+        max_value=MAX_EQUIPOS,
+        value=1
+    )
+
+    equipos_data = []
+
+    for i in range(num_equipos):
+        expanded_default = True if i == 0 else False
+
+        with st.expander(
+            f"Equipo {i + 1}",
+            expanded=expanded_default
+        ):
+            esp = st.selectbox(
+                "Categoría",
+                CATEGORIAS_OPCIONES,
+                key=f"esp_{i}"
+            )
+
+            estatus = st.selectbox(
+                "Estatus Final",
+                [
+                    "Operando correctamente",
+                    "Operando con observaciones",
+                    "No queda operando",
+                ],
+                key=f"est_{i}"
+            )
+
+            meds = {}
+            otros = ""
+
+            if esp == "Aire Acondicionado":
+                st.caption("Mediciones de aire acondicionado")
+
+                meds["Succión"] = st.text_input("Succión", key=f"s_{i}")
+                meds["Descarga"] = st.text_input("Descarga", key=f"d_{i}")
+                meds["Salida"] = st.text_input("Salida", key=f"t_{i}")
+                meds["Amperaje"] = st.text_input("Amperaje", key=f"a_{i}")
+
+            elif esp == "Otros":
+                otros = st.text_area(
+                    "Detalles / Mediciones",
+                    key=f"o_{i}"
+                )
+
+            tag = st.text_input("TAG", key=f"tg_{i}")
+            marca = st.text_input("Marca", key=f"mr_{i}")
+            cap = st.text_input("Capacidad", key=f"cp_{i}")
+
+            texto_defecto = LEYENDAS_DEFAULT.get(esp, "")
+
+            actividades = st.text_area(
+                "Actividades Realizadas",
+                value=texto_defecto,
+                height=100,
+                key=f"act_{i}_{esp}"
+            )
+
+            com = st.text_area(
+                "Comentarios Extras",
+                height=80,
+                key=f"com_{i}"
+            )
+
+            fa = st.file_uploader(
+                "Fotos ANTES",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"fa_{i}"
+            )
+
+            mostrar_estado_fotos(f"Fotos ANTES equipo {i + 1}", fa)
+
+            fd = st.file_uploader(
+                "Fotos DESPUÉS",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"fd_{i}"
+            )
+
+            mostrar_estado_fotos(f"Fotos DESPUÉS equipo {i + 1}", fd)
+
+            equipos_data.append(
+                {
+                    "numero": i + 1,
+                    "esp": esp,
+                    "estatus": estatus,
+                    "actividades": actividades,
+                    "meds": meds,
+                    "otros": otros,
+                    "tag": tag,
+                    "marca": marca,
+                    "cap": cap,
+                    "com": com,
+                    "fa": fa,
+                    "fd": fd
+                }
+            )
+
+    st.markdown(
+        '<div class="section-title">4. Materiales Utilizados</div>',
+        unsafe_allow_html=True
+    )
+
+    df_inicial = pd.DataFrame(
+        [{"Cantidad": "", "Descripción": ""}],
+        columns=["Cantidad", "Descripción"]
+    )
+
+    df_mat = st.data_editor(
+        df_inicial,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="editor_materiales"
+    )
+
+    st.markdown(
+        '<div class="section-title">5. Configuración de Envío</div>',
+        unsafe_allow_html=True
+    )
+
+    destinatarios_base = MAPEO_CORREOS.get(oficina, [])
+    st.info(f"Destinatarios automáticos para la oficina **{oficina}**: {', '.join(destinatarios_base) if destinatarios_base else 'Ninguno'}")
+
+    correos_extra = st.text_input(
+        "Correos adicionales (separados por comas)",
+        placeholder="ejemplo1@besco.mx, ejemplo2@besco.mx"
+    )
+
+    st.markdown("---")
+
+    if st.button("🚀 Generar PDF y Enviar Correo", type="primary", use_container_width=True):
+        if not cliente or not folio:
+            st.error("Por favor, completa al menos los campos obligatorios: Cliente y Folio / OT / TK.")
+        else:
+            with st.spinner("Generando reporte PDF y enviando correo electrónico..."):
+                pdf_bytes, f_ejec_str = generar_pdf(
+                    cliente=cliente,
+                    folio=folio,
+                    fecha_ejecucion=fecha_ejecucion,
+                    oficina=oficina,
+                    sucursal=sucursal,
+                    tecnico=tecnico,
+                    supervisor=supervisor,
+                    tipo_serv=tipo_serv,
+                    referencia=referencia,
+                    equipos_data=equipos_data,
+                    df_mat=df_mat,
+                    archivos_folio=archivos_folio
+                )
+
+                nombre_limpio_cliente = limpiar_nombre_archivo(cliente)
+                nombre_limpio_folio = limpiar_nombre_archivo(folio)
+                nombre_archivo = f"Reporte_{nombre_limpio_cliente}_{nombre_limpio_folio}.pdf"
+
+                exito = enviar_correo(
+                    pdf_bytes=pdf_bytes,
+                    cliente=cliente,
+                    folio=folio,
+                    sucursal=sucursal,
+                    oficina=oficina,
+                    nombre_archivo=nombre_archivo,
+                    correos_extra=correos_extra,
+                    fecha_ejec=f_ejec_str,
+                    lista_destinatarios=destinatarios_base
+                )
+
+                if exito:
+                    st.success("¡El reporte PDF se ha generado y enviado por correo exitosamente!")
+                    st.download_button(
+                        label="📥 Descargar copia del PDF generado",
+                        data=pdf_bytes,
+                        file_name=nombre_archivo,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+
+
+if __name__ == "__main__":
+    main()
