@@ -28,6 +28,8 @@ def apply_dark_styles():
         [data-testid="stHeader"] {
             background-color: transparent !important;
         }
+
+        /* ===== FIX: BARRA LATERAL IZQUIERDA (SIDEBAR) ===== */
         [data-testid="stSidebar"] {
             background-color: #162032 !important;
             border-right: 1px solid #334155 !important;
@@ -53,6 +55,7 @@ def apply_dark_styles():
             color: #FFFFFF !important;
             font-weight: 800 !important;
         }
+
         .block-container {
             padding-top: 2rem; 
             padding-left: 2rem;
@@ -69,6 +72,8 @@ def apply_dark_styles():
             border-radius: 12px !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
         }
+
+        /* FIX DE CONTRASTE ESTRICTO: FONDO BLANCO Y LETRA NEGRA */
         div[data-baseweb="input"] > div, 
         div[data-baseweb="textarea"] > div,
         div[data-baseweb="select"] > div,
@@ -101,6 +106,8 @@ def apply_dark_styles():
         ul[role="listbox"] li:hover {
             background-color: #E2E8F0 !important;
         }
+
+        /* Botones estándar (Azul Besco) */
         div.stButton > button {
             background-color: #363C98 !important; 
             color: white !important;
@@ -114,6 +121,8 @@ def apply_dark_styles():
             border: 1px solid #363C98 !important;
             transform: translateY(-2px);
         }
+        
+        /* Botones Primarios (Rojo Besco) */
         div.stButton > button[data-testid="baseButton-primary"] {
             background-color: #E31837 !important; 
             border: 1px solid #B01028 !important;
@@ -134,29 +143,36 @@ def apply_dark_styles():
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
 
-        /* ===== FIX: INTERRUPTOR (TOGGLE) FORMA RECTÁNGULO REDONDEADO ===== */
+        /* ===== FIX: INTERRUPTOR (TOGGLE) 65% MÁS GRANDE, AZUL Y CON BICEL 3D ===== */
         div[data-testid="stCheckbox"] {
             transform: scale(1.65);
             transform-origin: left center;
-            margin-top: 20px;
-            margin-bottom: 25px;
-            margin-left: 5px;
+            margin-top: 25px;
+            margin-bottom: 35px;
+            margin-left: 10px;
+            
+            /* ESTILO DE BOTÓN CON BICEL */
+            background-color: #165371 !important; /* Azul Teal oscuro */
+            border: 2px solid #5b5b5b !important; /* Borde gris */
+            border-radius: 12px !important;       /* Esquinas redondeadas */
+            padding: 6px 14px !important;         /* Espaciado interno */
+            box-shadow: 
+                inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.4), /* Luz superior (Bicel) */
+                inset -1.5px -1.5px 4px rgba(0, 0, 0, 0.6),     /* Sombra inferior (Bicel) */
+                3px 3px 6px rgba(0, 0, 0, 0.5) !important;      /* Sombra exterior */
         }
-        /* Pista encendida: Color azul acero de la imagen y borde redondeado */
+        
+        /* Ajuste del color de texto dentro del interruptor */
+        div[data-testid="stCheckbox"] p {
+            color: #FFFFFF !important;
+            font-weight: 700 !important;
+        }
+
+        /* Cambiar fondo del switch a azul corporativo cuando está encendido */
         div[data-testid="stCheckbox"] input:checked + div,
-        div[data-testid="stCheckbox"] input[aria-checked="true"] + div {
-            background-color: #165A7C !important; 
-            border-radius: 6px !important;
-            border: 1px solid #0D3E57 !important;
-        }
-        /* Pista apagada: Borde redondeado */
-        div[data-testid="stCheckbox"] input:not(:checked) + div,
-        div[data-testid="stCheckbox"] input[aria-checked="false"] + div {
-            border-radius: 6px !important;
-        }
-        /* Botón deslizante (Thumb) también en rectángulo suavizado */
-        div[data-testid="stCheckbox"] input + div > div {
-            border-radius: 4px !important;
+        div[data-testid="stCheckbox"] input[aria-checked="true"] + div,
+        div[data-testid="stCheckbox"] input:checked + div > div {
+            background-color: #363C98 !important; 
         }
         </style>
         """,
@@ -168,6 +184,7 @@ def apply_dark_styles():
 # ==========================================
 IVA_RATE = 0.16
 DEFAULT_UTILIDAD_MANUAL = 23.55
+UTILIDAD_PRECIARIO = 0.0
 DEFAULT_CANTIDAD = 1.0
 DEFAULT_PRECIO = 0.0
 BORRADOR_FOLIO_KEY = "__BORRADOR__"
@@ -302,7 +319,7 @@ def validar_concepto(descripcion, unidad, cantidad, precio_unitario):
     return errores
 
 # ==========================================
-# CONEXIÓN GOOGLE REST API ROBUSTA
+# CONEXIÓN DIRECTA GOOGLE REST API (BYPASS GSPREAD)
 # ==========================================
 def extract_sheet_id(url_or_id):
     if "spreadsheets/d/" in str(url_or_id):
@@ -311,12 +328,12 @@ def extract_sheet_id(url_or_id):
 
 def get_google_rest_token(scopes):
     if Credentials is None or Request is None:
-        raise RuntimeError("Falta la librería google-auth en requirements.txt")
+        raise RuntimeError("Falta la librería google-auth. Revisa el requirements.txt")
     if "gcp_service_account" not in st.secrets:
-        raise RuntimeError("Faltan las credenciales [gcp_service_account] en secrets.toml")
+        raise RuntimeError("Faltan credenciales gcp_service_account en secrets.")
     
     info = dict(st.secrets["gcp_service_account"])
-    if "private_key" in info and isinstance(info["private_key"], str):
+    if "private_key" in info:
         info["private_key"] = info["private_key"].replace("\\n", "\n").strip()
         
     creds = Credentials.from_service_account_info(info, scopes=scopes)
@@ -372,6 +389,7 @@ def obtener_preciario_besco():
         header = values[0]
         max_cols = len(header)
         
+        # Estabilizar matriz
         rows = []
         for r in values[1:]:
             if len(r) < max_cols:
@@ -639,31 +657,26 @@ def render_selector_preciario():
     st.markdown("## 2. Captura de Conceptos")
     with st.container(border=True):
         usar_preciario = st.toggle("🚀 Habilitar Búsqueda en Preciario BESCO (Google Sheets)", value=st.session_state.toggle_preciario_besco)
-        st.session_state.toggle_preciario_besco = usar_preciario
-        
         clave_preciario, tipo_servicio, descripcion, unidad, precio_unitario = "", "Servicio", "", "PZA", DEFAULT_PRECIO
 
         if usar_preciario:
             try:
                 df_preciario = obtener_preciario_besco()
-                if df_preciario.empty: 
-                    st.warning("El Preciario está vacío o no se encontraron filas legibles.")
+                if df_preciario.empty: st.warning("El Preciario está vacío."); usar_preciario = False
                 else:
                     columnas_region = detectar_columnas_region(df_preciario)
-                    if not columnas_region: 
-                        st.warning("No se detectaron columnas de precio en el Preciario.")
+                    if not columnas_region: st.warning("No se detectaron columnas de precio en el Preciario."); usar_preciario = False
                     else:
                         col_reg, col_busq = st.columns([1, 2])
                         with col_reg: region_seleccionada = st.selectbox("Región", options=columnas_region)
-                        with col_busq: busqueda = st.text_input("Buscador de conceptos:").strip().lower()
+                        with col_busq: busqueda = st.text_input("Buscador:").strip().lower()
 
                         df_filtrado = df_preciario.copy()
                         if busqueda:
                             mask = df_filtrado["clave"].str.lower().str.contains(busqueda, na=False) | df_filtrado["descripcion"].str.lower().str.contains(busqueda, na=False)
                             df_filtrado = df_filtrado[mask]
 
-                        if df_filtrado.empty: 
-                            st.warning("No hay coincidencias con la búsqueda.")
+                        if df_filtrado.empty: st.warning("No hay coincidencias.")
                         else:
                             df_filtrado["opcion_display"] = df_filtrado["clave"] + " - " + df_filtrado["descripcion"]
                             opcion_sel = st.selectbox("Selecciona un concepto:", options=df_filtrado["opcion_display"])
@@ -678,8 +691,8 @@ def render_selector_preciario():
                             st.text_area("Descripción", value=descripcion, disabled=True)
                             precio_unitario = st.number_input("Precio Base ($)", value=float(precio_unitario))
             except Exception as e:
-                st.error(f"❌ Error al conectar con Preciario BESCO en Google Sheets: {e}")
-                st.info("💡 Asegúrate de que el documento de Google Sheets tenga permisos de lectura para la cuenta de servicio configurada en Streamlit Secrets.")
+                st.error(f"❌ Error al cargar Preciario BESCO: {e}")
+                usar_preciario = False
 
         if not usar_preciario:
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -692,9 +705,7 @@ def render_selector_preciario():
         st.markdown("---")
         col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
         with col_c1: cantidad = st.number_input("Cantidad", min_value=0.01, value=1.0)
-        with col_c2: 
-            utilidad_predeterminada = 0.0 if usar_preciario else DEFAULT_UTILIDAD_MANUAL
-            utilidad_pct = st.number_input("% Utilidad a aplicar", min_value=0.0, value=utilidad_predeterminada)
+        with col_c2: utilidad_pct = st.number_input("% Utilidad a aplicar", min_value=0.0, value=DEFAULT_UTILIDAD_MANUAL)
         with col_c3:
             precio_venta_u = calcular_precio_venta(precio_unitario, utilidad_pct)
             importe_total = round(cantidad * precio_venta_u, 2)
@@ -792,9 +803,7 @@ def render_seccion_generacion(subtotal, iva, total):
 
     with col_gen3:
         if st.button("📊 Guardar Historial Sheets", use_container_width=True):
-            if not conceptos: 
-                st.session_state.mensaje_error = "Agrega conceptos primero."
-                st.rerun()
+            if not conceptos: st.session_state.mensaje_error = "Agrega conceptos primero."; st.rerun()
             else:
                 fecha_str = datos.get("fecha", date.today()).strftime("%Y-%m-%d")
                 registrar_en_historial(datos.get("folio", ""), fecha_str, datos.get("cliente_nombre", ""), datos.get("cliente_empresa", ""), datos.get("nombre_cotizacion", ""), total, datos.get("cotiza_nombre", ""), datos.get("empresa_cotizadora", ""))
@@ -810,10 +819,7 @@ def main():
     
     col_logo1, col_logo2, col_logo3 = st.columns([1, 1.5, 1])
     with col_logo2:
-        for logo_path in ["logo besco 2026.jpeg", "logo.jpeg"]:
-            if os.path.exists(logo_path):
-                st.image(logo_path, use_container_width=True)
-                break
+        if os.path.exists("logo besco 2026.jpeg"): st.image("logo besco 2026.jpeg", use_container_width=True)
             
     st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>💰 Sistema de Cotizaciones | Grupo BESCO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #94A3B8; margin-bottom: 2rem;'>Crea cotizaciones de captura manual directa o enlazada al Preciario BESCO.</p>", unsafe_allow_html=True)
