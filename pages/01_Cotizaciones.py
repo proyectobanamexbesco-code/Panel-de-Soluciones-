@@ -134,7 +134,7 @@ def apply_dark_styles():
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
 
-        /* ===== FIX: INTERRUPTOR (TOGGLE) 65% MÁS GRANDE Y AZUL ===== */
+        /* ===== FIX: INTERRUPTOR (TOGGLE) FORMA RECTÁNGULO REDONDEADO ===== */
         div[data-testid="stCheckbox"] {
             transform: scale(1.65);
             transform-origin: left center;
@@ -142,11 +142,21 @@ def apply_dark_styles():
             margin-bottom: 25px;
             margin-left: 5px;
         }
-        /* Cambiar fondo a azul corporativo cuando está encendido */
+        /* Pista encendida: Color azul acero de la imagen y borde redondeado */
         div[data-testid="stCheckbox"] input:checked + div,
-        div[data-testid="stCheckbox"] input[aria-checked="true"] + div,
-        div[data-testid="stCheckbox"] input:checked + div > div {
-            background-color: #363C98 !important; 
+        div[data-testid="stCheckbox"] input[aria-checked="true"] + div {
+            background-color: #165A7C !important; 
+            border-radius: 6px !important;
+            border: 1px solid #0D3E57 !important;
+        }
+        /* Pista apagada: Borde redondeado */
+        div[data-testid="stCheckbox"] input:not(:checked) + div,
+        div[data-testid="stCheckbox"] input[aria-checked="false"] + div {
+            border-radius: 6px !important;
+        }
+        /* Botón deslizante (Thumb) también en rectángulo suavizado */
+        div[data-testid="stCheckbox"] input + div > div {
+            border-radius: 4px !important;
         }
         </style>
         """,
@@ -683,7 +693,6 @@ def render_selector_preciario():
         col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
         with col_c1: cantidad = st.number_input("Cantidad", min_value=0.01, value=1.0)
         with col_c2: 
-            # FIX DE UTILIDAD AUTOMÁTICA EN 0 PARA PRECIARIO
             utilidad_predeterminada = 0.0 if usar_preciario else DEFAULT_UTILIDAD_MANUAL
             utilidad_pct = st.number_input("% Utilidad a aplicar", min_value=0.0, value=utilidad_predeterminada)
         with col_c3:
