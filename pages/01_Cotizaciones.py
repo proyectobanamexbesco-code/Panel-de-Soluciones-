@@ -199,6 +199,11 @@ EMPRESAS_EMISORAS = {
         "nombre_corto": "BESCO ASM",
         "rfc": "BAS210714RV4",
         "direccion": "JOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65"
+    },
+    "Besco IMP, S.A de C.V.": {
+        "nombre_corto": "BESCO IMP",
+        "rfc": "BIM210927BA8",
+        "direccion": "JOSE IGNACIO BARTOLOACHE # 1910 Col. Acacias, CDMX\nTel. 01 55 55 15 08 65"
     }
 }
 
@@ -657,26 +662,31 @@ def render_selector_preciario():
     st.markdown("## 2. Captura de Conceptos")
     with st.container(border=True):
         usar_preciario = st.toggle("🚀 Habilitar Búsqueda en Preciario BESCO (Google Sheets)", value=st.session_state.toggle_preciario_besco)
+        st.session_state.toggle_preciario_besco = usar_preciario
+        
         clave_preciario, tipo_servicio, descripcion, unidad, precio_unitario = "", "Servicio", "", "PZA", DEFAULT_PRECIO
 
         if usar_preciario:
             try:
                 df_preciario = obtener_preciario_besco()
-                if df_preciario.empty: st.warning("El Preciario está vacío."); usar_preciario = False
+                if df_preciario.empty: 
+                    st.warning("El Preciario está vacío o no se encontraron filas legibles.")
                 else:
                     columnas_region = detectar_columnas_region(df_preciario)
-                    if not columnas_region: st.warning("No se detectaron columnas de precio en el Preciario."); usar_preciario = False
+                    if not columnas_region: 
+                        st.warning("No se detectaron columnas de precio en el Preciario.")
                     else:
                         col_reg, col_busq = st.columns([1, 2])
                         with col_reg: region_seleccionada = st.selectbox("Región", options=columnas_region)
-                        with col_busq: busqueda = st.text_input("Buscador:").strip().lower()
+                        with col_busq: busqueda = st.text_input("Buscador de conceptos:").strip().lower()
 
                         df_filtrado = df_preciario.copy()
                         if busqueda:
                             mask = df_filtrado["clave"].str.lower().str.contains(busqueda, na=False) | df_filtrado["descripcion"].str.lower().str.contains(busqueda, na=False)
                             df_filtrado = df_filtrado[mask]
 
-                        if df_filtrado.empty: st.warning("No hay coincidencias.")
+                        if df_filtrado.empty: 
+                            st.warning("No hay coincidencias con la búsqueda.")
                         else:
                             df_filtrado["opcion_display"] = df_filtrado["clave"] + " - " + df_filtrado["descripcion"]
                             opcion_sel = st.selectbox("Selecciona un concepto:", options=df_filtrado["opcion_display"])
@@ -691,8 +701,8 @@ def render_selector_preciario():
                             st.text_area("Descripción", value=descripcion, disabled=True)
                             precio_unitario = st.number_input("Precio Base ($)", value=float(precio_unitario))
             except Exception as e:
-                st.error(f"❌ Error al cargar Preciario BESCO: {e}")
-                usar_preciario = False
+                st.error(f"❌ Error al conectar con Preciario BESCO en Google Sheets: {e}")
+                st.info("💡 Asegúrate de que el documento de Google Sheets tenga permisos de lectura para la cuenta de servicio configurada en Streamlit Secrets.")
 
         if not usar_preciario:
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -705,7 +715,10 @@ def render_selector_preciario():
         st.markdown("---")
         col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
         with col_c1: cantidad = st.number_input("Cantidad", min_value=0.01, value=1.0)
-        with col_c2: utilidad_pct = st.number_input("% Utilidad a aplicar", min_value=0.0, value=DEFAULT_UTILIDAD_MANUAL)
+        with col_c2: 
+            # FIX DE UTILIDAD AUTOMÁTICA EN 0 PARA PRECIARIO
+            utilidad_predeterminada = 0.0 if usar_preciario else DEFAULT_UTILIDAD_MANUAL
+            utilidad_pct = st.number_input("% Utilidad a aplicar", min_value=0.0, value=utilidad_predeterminada)
         with col_c3:
             precio_venta_u = calcular_precio_venta(precio_unitario, utilidad_pct)
             importe_total = round(cantidad * precio_venta_u, 2)
@@ -803,7 +816,9 @@ def render_seccion_generacion(subtotal, iva, total):
 
     with col_gen3:
         if st.button("📊 Guardar Historial Sheets", use_container_width=True):
-            if not conceptos: st.session_state.mensaje_error = "Agrega conceptos primero."; st.rerun()
+            if not conceptos: 
+                st.session_state.mensaje_error = "Agrega conceptos primero."
+                st.rerun()
             else:
                 fecha_str = datos.get("fecha", date.today()).strftime("%Y-%m-%d")
                 registrar_en_historial(datos.get("folio", ""), fecha_str, datos.get("cliente_nombre", ""), datos.get("cliente_empresa", ""), datos.get("nombre_cotizacion", ""), total, datos.get("cotiza_nombre", ""), datos.get("empresa_cotizadora", ""))
@@ -819,7 +834,10 @@ def main():
     
     col_logo1, col_logo2, col_logo3 = st.columns([1, 1.5, 1])
     with col_logo2:
-        if os.path.exists("logo besco 2026.jpeg"): st.image("logo besco 2026.jpeg", use_container_width=True)
+        for logo_path in ["logo besco 2026.jpeg", "logo.jpeg"]:
+            if os.path.exists(logo_path):
+                st.image(logo_path, use_container_width=True)
+                break
             
     st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>💰 Sistema de Cotizaciones | Grupo BESCO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #94A3B8; margin-bottom: 2rem;'>Crea cotizaciones de captura manual directa o enlazada al Preciario BESCO.</p>", unsafe_allow_html=True)
