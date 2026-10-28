@@ -816,9 +816,7 @@ def render_seccion_generacion(subtotal, iva, total):
 
     with col_gen3:
         if st.button("📊 Guardar Historial Sheets", use_container_width=True):
-            if not conceptos: 
-                st.session_state.mensaje_error = "Agrega conceptos primero."
-                st.rerun()
+            if not conceptos: st.session_state.mensaje_error = "Agrega conceptos primero."; st.rerun()
             else:
                 fecha_str = datos.get("fecha", date.today()).strftime("%Y-%m-%d")
                 registrar_en_historial(datos.get("folio", ""), fecha_str, datos.get("cliente_nombre", ""), datos.get("cliente_empresa", ""), datos.get("nombre_cotizacion", ""), total, datos.get("cotiza_nombre", ""), datos.get("empresa_cotizadora", ""))
@@ -834,10 +832,7 @@ def main():
     
     col_logo1, col_logo2, col_logo3 = st.columns([1, 1.5, 1])
     with col_logo2:
-        for logo_path in ["logo besco 2026.jpeg", "logo.jpeg"]:
-            if os.path.exists(logo_path):
-                st.image(logo_path, use_container_width=True)
-                break
+        if os.path.exists("logo besco 2026.jpeg"): st.image("logo besco 2026.jpeg", use_container_width=True)
             
     st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>💰 Sistema de Cotizaciones | Grupo BESCO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #94A3B8; margin-bottom: 2rem;'>Crea cotizaciones de captura manual directa o enlazada al Preciario BESCO.</p>", unsafe_allow_html=True)
