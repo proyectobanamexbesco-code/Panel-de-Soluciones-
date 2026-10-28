@@ -1,7 +1,7 @@
 import os
 import re
 import requests
-from datetime import date
+from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 from fpdf import FPDF
@@ -28,8 +28,6 @@ def apply_dark_styles():
         [data-testid="stHeader"] {
             background-color: transparent !important;
         }
-
-        /* ===== FIX: BARRA LATERAL IZQUIERDA (SIDEBAR) ===== */
         [data-testid="stSidebar"] {
             background-color: #162032 !important;
             border-right: 1px solid #334155 !important;
@@ -55,7 +53,6 @@ def apply_dark_styles():
             color: #FFFFFF !important;
             font-weight: 800 !important;
         }
-
         .block-container {
             padding-top: 2rem; 
             padding-left: 2rem;
@@ -72,8 +69,6 @@ def apply_dark_styles():
             border-radius: 12px !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
         }
-
-        /* FIX DE CONTRASTE ESTRICTO: FONDO BLANCO Y LETRA NEGRA */
         div[data-baseweb="input"] > div, 
         div[data-baseweb="textarea"] > div,
         div[data-baseweb="select"] > div,
@@ -106,8 +101,6 @@ def apply_dark_styles():
         ul[role="listbox"] li:hover {
             background-color: #E2E8F0 !important;
         }
-
-        /* Botones estándar (Azul Besco) */
         div.stButton > button {
             background-color: #363C98 !important; 
             color: white !important;
@@ -121,8 +114,6 @@ def apply_dark_styles():
             border: 1px solid #363C98 !important;
             transform: translateY(-2px);
         }
-        
-        /* Botones Primarios (Rojo Besco) */
         div.stButton > button[data-testid="baseButton-primary"] {
             background-color: #E31837 !important; 
             border: 1px solid #B01028 !important;
@@ -150,25 +141,19 @@ def apply_dark_styles():
             margin-top: 25px;
             margin-bottom: 35px;
             margin-left: 10px;
-            
-            /* ESTILO DE BOTÓN CON BICEL */
-            background-color: #165371 !important; /* Azul Teal oscuro */
-            border: 2px solid #5b5b5b !important; /* Borde gris */
-            border-radius: 12px !important;       /* Esquinas redondeadas */
-            padding: 6px 14px !important;         /* Espaciado interno */
+            background-color: #165371 !important;
+            border: 2px solid #5b5b5b !important;
+            border-radius: 12px !important;
+            padding: 6px 14px !important;
             box-shadow: 
-                inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.4), /* Luz superior (Bicel) */
-                inset -1.5px -1.5px 4px rgba(0, 0, 0, 0.6),     /* Sombra inferior (Bicel) */
-                3px 3px 6px rgba(0, 0, 0, 0.5) !important;      /* Sombra exterior */
+                inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.4),
+                inset -1.5px -1.5px 4px rgba(0, 0, 0, 0.6),
+                3px 3px 6px rgba(0, 0, 0, 0.5) !important;
         }
-        
-        /* Ajuste del color de texto dentro del interruptor */
         div[data-testid="stCheckbox"] p {
             color: #FFFFFF !important;
             font-weight: 700 !important;
         }
-
-        /* Cambiar fondo del switch a azul corporativo cuando está encendido */
         div[data-testid="stCheckbox"] input:checked + div,
         div[data-testid="stCheckbox"] input[aria-checked="true"] + div,
         div[data-testid="stCheckbox"] input:checked + div > div {
@@ -324,7 +309,7 @@ def validar_concepto(descripcion, unidad, cantidad, precio_unitario):
     return errores
 
 # ==========================================
-# CONEXIÓN DIRECTA GOOGLE REST API (BYPASS GSPREAD)
+# CONEXIÓN DIRECTA GOOGLE REST API
 # ==========================================
 def extract_sheet_id(url_or_id):
     if "spreadsheets/d/" in str(url_or_id):
@@ -394,7 +379,6 @@ def obtener_preciario_besco():
         header = values[0]
         max_cols = len(header)
         
-        # Estabilizar matriz
         rows = []
         for r in values[1:]:
             if len(r) < max_cols:
@@ -423,6 +407,47 @@ def obtener_preciario_besco():
         
     except Exception as e:
         raise RuntimeError(str(e))
+
+def buscar_cotizacion_por_folio(folio_buscar):
+    try:
+        token = get_google_rest_token(["https://www.googleapis.com/auth/spreadsheets.readonly"])
+        sheet_id = extract_sheet_id(st.secrets.get("HISTORIAL_COTIZACIONES_KEY", "1fgHczjNYfNxxBNEnPI7YRYTZlyru8BeZOKPy317lzew"))
+        worksheet = str(st.secrets.get("HISTORIAL_COTIZACIONES_WORKSHEET", "Hoja 1")).strip()
+        
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{worksheet}"
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        resp = requests.get(url, headers=headers)
+        if resp.status_code != 200:
+            return None
+            
+        data = resp.json()
+        values = data.get("values", [])
+        
+        if not values or len(values) < 2:
+            return None
+            
+        for row in values[1:]:
+            if len(row) > 0 and str(row[0]).strip().upper() == str(folio_buscar).strip().upper():
+                # Formato esperado: FOLIO, FECHA, CLIENTE, EMPRESA / INMUEBLE, NOMBRE COTIZACION, TOTAL PRESUPUESTADO, COTIZADOR, EMPRESA EMISORA
+                try:
+                    fecha_obj = datetime.strptime(row[1], "%Y-%m-%d").date() if len(row) > 1 else date.today()
+                except ValueError:
+                    fecha_obj = date.today()
+                    
+                empresa_emisora = row[7] if len(row) > 7 and row[7] in EMPRESAS_EMISORAS else list(EMPRESAS_EMISORAS.keys())[0]
+                
+                return {
+                    "fecha": fecha_obj,
+                    "cliente_nombre": row[2] if len(row) > 2 else "",
+                    "cliente_empresa": row[3] if len(row) > 3 else "",
+                    "nombre_cotizacion": row[4] if len(row) > 4 else "",
+                    "cotiza_nombre": row[6] if len(row) > 6 else "",
+                    "empresa_cotizadora": empresa_emisora
+                }
+        return None
+    except Exception as e:
+        return None
 
 def registrar_en_historial(folio, fecha_texto, cliente, empresa, nombre_cot, total, cotizador, empresa_emisora):
     try:
@@ -627,7 +652,27 @@ def render_seccion_identificacion():
         st.markdown("---")
         
         col_g1, col_g2, col_g3, col_g4 = st.columns(4)
-        with col_g1: folio = st.text_input("Folio / OT / TK", value=datos.get("folio", ""))
+        
+        # --- NUEVA FUNCIÓN: RECUPERAR DATOS POR FOLIO ---
+        with col_g1: 
+            col_f1, col_f2 = st.columns([3, 1])
+            with col_f1:
+                folio = st.text_input("Folio / OT / TK", value=datos.get("folio", ""))
+            with col_f2:
+                st.write("")
+                st.write("")
+                if st.button("🔍", help="Buscar Folio en Historial"):
+                    if folio.strip():
+                        with st.spinner("Buscando folio..."):
+                            datos_recuperados = buscar_cotizacion_por_folio(folio)
+                        if datos_recuperados:
+                            st.session_state.datos_cotizacion.update(datos_recuperados)
+                            st.session_state.datos_cotizacion["folio"] = folio.strip()
+                            st.success("✅ Folio recuperado.")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Folio no encontrado.")
+                            
         with col_g2: fecha = st.date_input("Fecha de cotización", value=datos.get("fecha", date.today()))
         with col_g3: vigencia = st.text_input("Vigencia", value=datos.get("vigencia", "15 DÍAS"))
         with col_g4: nombre_cotizacion = st.text_input("Nombre de Cotización", value=datos.get("nombre_cotizacion", ""))
